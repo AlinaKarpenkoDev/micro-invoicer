@@ -1,0 +1,2213 @@
+Directory structure:
+└── micro-invoicer/
+    ├── docker-compose.yml
+    ├── package.json
+    ├── turbo.json
+    ├── .dockerignore
+    ├── .env.example
+    ├── apps/
+    │   ├── api/
+    │   │   ├── README.md
+    │   │   ├── Dockerfile
+    │   │   ├── eslint.config.mjs
+    │   │   ├── nest-cli.json
+    │   │   ├── package.json
+    │   │   ├── tsconfig.build.json
+    │   │   ├── tsconfig.json
+    │   │   ├── .prettierrc
+    │   │   ├── src/
+    │   │   │   ├── app.controller.spec.ts
+    │   │   │   ├── app.controller.ts
+    │   │   │   ├── app.module.ts
+    │   │   │   ├── app.service.ts
+    │   │   │   ├── main.ts
+    │   │   │   ├── auth/
+    │   │   │   │   ├── auth.controller.ts
+    │   │   │   │   ├── auth.dto.ts
+    │   │   │   │   ├── auth.guard.ts
+    │   │   │   │   ├── auth.module.ts
+    │   │   │   │   └── auth.service.ts
+    │   │   │   ├── database/
+    │   │   │   │   ├── database.module.ts
+    │   │   │   │   ├── database.ts
+    │   │   │   │   ├── migrate.ts
+    │   │   │   │   └── migrations/
+    │   │   │   │       └── 001_initial_schema.ts
+    │   │   │   └── invoices/
+    │   │   │       ├── invoices.controller.spec.ts
+    │   │   │       ├── invoices.controller.ts
+    │   │   │       ├── invoices.dto.ts
+    │   │   │       ├── invoices.module.ts
+    │   │   │       ├── invoices.service.spec.ts
+    │   │   │       ├── invoices.service.ts
+    │   │   │       └── pdf.service.ts
+    │   │   └── test/
+    │   │       ├── app.e2e-spec.ts
+    │   │       └── jest-e2e.json
+    │   └── web/
+    │       ├── README.md
+    │       ├── AGENTS.md
+    │       ├── CLAUDE.md
+    │       ├── Dockerfile
+    │       ├── eslint.config.mjs
+    │       ├── next.config.ts
+    │       ├── package.json
+    │       ├── postcss.config.mjs
+    │       ├── tsconfig.json
+    │       └── src/
+    │           └── app/
+    │               ├── globals.css
+    │               ├── layout.tsx
+    │               ├── page.tsx
+    │               ├── providers.tsx
+    │               ├── create/
+    │               │   └── page.tsx
+    │               ├── login/
+    │               │   └── page.tsx
+    │               └── register/
+    │                   └── page.tsx
+    └── packages/
+        └── shared/
+            ├── package.json
+            ├── tsconfig.json
+            └── src/
+                └── index.ts
+
+================================================
+FILE: docker-compose.yml
+================================================
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: micro_invoicer_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: invoicer_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: micro_invoicer_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
+    name: micro_invoicer_pg_data
+
+
+================================================
+FILE: package.json
+================================================
+{
+  "name": "micro-invoicer",
+  "private": true,
+  "packageManager": "npm@10.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:api": "turbo run dev --filter=api",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "turbo": "latest",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "api": "^7.0.2",
+    "bcryptjs": "^3.0.3"
+  }
+}
+
+
+
+================================================
+FILE: turbo.json
+================================================
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["src/**/*.tsx", "src/**/*.ts", "test/**/*.ts"]
+    },
+    "lint": {},
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "db:migrate": {
+      "cache": false
+    }
+  }
+}
+
+
+================================================
+FILE: .dockerignore
+================================================
+.git
+.github
+.turbo
+node_modules
+**/node_modules
+**/.next
+**/dist
+coverage
+tmp
+.DS_Store
+.env
+**/.env
+**/.env.local
+
+
+================================================
+FILE: .env.example
+================================================
+# Database
+DATABASE_URL="postgresql://postgres:password123@localhost:5432/invoicer_db"
+
+# Security
+JWT_SECRET="super-secret-jwt-key"
+
+# Local Testing Scripts Key
+STAGE="local"
+SCRIPTS_API_KEY="test-local-key"
+
+
+================================================
+FILE: apps/api/README.md
+================================================
+<p align="center">
+  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+</p>
+
+[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
+[circleci-url]: https://circleci.com/gh/nestjs/nest
+
+  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
+    <p align="center">
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
+<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
+<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
+<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
+<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
+  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
+    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
+  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+</p>
+  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
+  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+
+## Description
+
+[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+
+## Project setup
+
+```bash
+$ npm install
+```
+
+## Compile and run the project
+
+```bash
+# development
+$ npm run start
+
+# watch mode
+$ npm run start:dev
+
+# production mode
+$ npm run start:prod
+```
+
+## Run tests
+
+```bash
+# unit tests
+$ npm run test
+
+# e2e tests
+$ npm run test:e2e
+
+# test coverage
+$ npm run test:cov
+```
+
+## Deployment
+
+When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+
+If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+
+```bash
+$ npm install -g @nestjs/mau
+$ mau deploy
+```
+
+With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+
+## Resources
+
+Check out a few resources that may come in handy when working with NestJS:
+
+- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
+- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
+- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
+- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
+- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
+- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
+- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
+- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+
+## Support
+
+Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+
+## Stay in touch
+
+- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
+- Website - [https://nestjs.com](https://nestjs.com/)
+- Twitter - [@nestframework](https://twitter.com/nestframework)
+
+## License
+
+Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+
+
+================================================
+FILE: apps/api/Dockerfile
+================================================
+FROM node:22-alpine
+
+RUN apk add --no-cache git openssh-client && \
+    mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+WORKDIR /app
+
+COPY package.json package-lock.json turbo.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
+
+RUN --mount=type=secret,id=ssh_key \
+    --mount=type=secret,id=npm_token \
+    eval $(ssh-agent -s) && \
+    [ -f /run/secrets/ssh_key ] && ssh-add /run/secrets/ssh_key || true && \
+    [ -f /run/secrets/npm_token ] && echo "//registry.npmjs.org/:_authToken=$(cat /run/secrets/npm_token)" > ~/.npmrc || true && \
+    npm ci && \
+    rm -f ~/.npmrc
+
+COPY . .
+
+RUN npx turbo run build --filter=api
+
+RUN npm prune --omit=dev
+
+ENV NODE_ENV=production
+EXPOSE 4000
+
+CMD sh -c "cd apps/api && npm run start:prod"
+
+
+================================================
+FILE: apps/api/eslint.config.mjs
+================================================
+// @ts-check
+import eslint from '@eslint/js';
+import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
+  {
+    ignores: ['eslint.config.mjs'],
+  },
+  eslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  eslintPluginPrettierRecommended,
+  {
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+      },
+      sourceType: 'commonjs',
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/no-unsafe-argument': 'warn',
+      "prettier/prettier": ["error", { endOfLine: "auto" }],
+    },
+  },
+);
+
+
+
+================================================
+FILE: apps/api/nest-cli.json
+================================================
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true
+  }
+}
+
+
+
+================================================
+FILE: apps/api/package.json
+================================================
+{
+  "name": "api",
+  "version": "0.0.1",
+  "description": "",
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "dev": "nest start --watch",
+    "db:migrate": "ts-node src/database/migrate.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/jwt": "^12.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "dotenv": "^17.4.2",
+    "kysely": "^0.29.5",
+    "pdfkit": "^0.20.2",
+    "pg": "^8.23.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.18.0",
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pdfkit": "^0.17.6",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.0.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^17.0.0",
+    "jest": "^30.0.0",
+    "prettier": "^3.4.2",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  }
+}
+
+
+
+================================================
+FILE: apps/api/tsconfig.build.json
+================================================
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+}
+
+
+
+================================================
+FILE: apps/api/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolvePackageJsonExports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}
+
+
+
+================================================
+FILE: apps/api/.prettierrc
+================================================
+{
+  "singleQuote": true,
+  "trailingComma": "all"
+}
+
+
+
+================================================
+FILE: apps/api/src/app.controller.spec.ts
+================================================
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+describe('AppController', () => {
+  let appController: AppController;
+
+  beforeEach(async () => {
+    const app: TestingModule = await Test.createTestingModule({
+      controllers: [AppController],
+      providers: [AppService],
+    }).compile();
+
+    appController = app.get<AppController>(AppController);
+  });
+
+  describe('root', () => {
+    it('should return "Hello World!"', () => {
+      expect(appController.getHello()).toBe('Hello World!');
+    });
+  });
+});
+
+
+
+================================================
+FILE: apps/api/src/app.controller.ts
+================================================
+import { Controller, Get } from '@nestjs/common';
+import { AppService } from './app.service';
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+}
+
+
+
+================================================
+FILE: apps/api/src/app.module.ts
+================================================
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { DatabaseModule } from './database/database.module';
+import { AuthModule } from './auth/auth.module';
+import { InvoicesModule } from './invoices/invoices.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '../../.env' }),
+    DatabaseModule,
+    AuthModule,
+    InvoicesModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
+
+
+
+================================================
+FILE: apps/api/src/app.service.ts
+================================================
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Hello World!';
+  }
+}
+
+
+
+================================================
+FILE: apps/api/src/main.ts
+================================================
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.enableCors();
+  await app.listen(process.env.PORT ?? 4000);
+}
+bootstrap();
+
+
+
+================================================
+FILE: apps/api/src/auth/auth.controller.ts
+================================================
+import {
+  Body,
+  Controller,
+  Post,
+  UseGuards,
+  Get,
+  Request,
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { AuthGuard } from './auth.guard';
+import { RegisterDto, LoginDto } from './auth.dto';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('register')
+  async register(@Body() body: RegisterDto) {
+    return this.authService.register(body.email, body.password);
+  }
+  @Post('login')
+  async login(@Body() body: LoginDto) {
+    return this.authService.login(body.email, body.password);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('me')
+  getProfile(@Request() req: Request & { user: any }) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return req.user;
+  }
+}
+
+
+
+================================================
+FILE: apps/api/src/auth/auth.dto.ts
+================================================
+export class RegisterDto {
+  email!: string;
+  password!: string;
+}
+export class LoginDto {
+  email!: string;
+  password!: string;
+}
+
+
+
+================================================
+FILE: apps/api/src/auth/auth.guard.ts
+================================================
+[Binary file]
+
+
+================================================
+FILE: apps/api/src/auth/auth.module.ts
+================================================
+import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+
+@Module({
+  imports: [
+    JwtModule.register({
+      global: true,
+      secret: 'super-secret-jwt-key',
+      signOptions: { expiresIn: '1d' },
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [AuthService],
+})
+export class AuthModule {}
+
+
+
+================================================
+FILE: apps/api/src/auth/auth.service.ts
+================================================
+import {
+  Inject,
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { Kysely } from 'kysely';
+import { Database } from '../database/database';
+import * as bcrypt from 'bcryptjs';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    @Inject('DB_INSTANCE') private readonly db: Kysely<Database>,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  async register(email: string, plainPassword: string) {
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+    try {
+      const newUser = await this.db
+        .insertInto('users')
+        .values({
+          email: email,
+          password_hash: hashedPassword,
+        })
+        .returning(['id', 'email', 'created_at'])
+        .executeTakeFirstOrThrow();
+
+      await this.db
+        .insertInto('workspaces')
+        .values({
+          user_id: newUser.id,
+          name: 'Мій перший простір',
+        })
+        .execute();
+
+      return newUser;
+    } catch (error: any) {
+      const pgError = error as { code?: string };
+      if (pgError.code === '23505') {
+        throw new ConflictException('Користувач з таким email вже існує!');
+      }
+      throw error;
+    }
+  }
+  async login(email: string, plainPassword: string) {
+    const user = await this.db
+      .selectFrom('users')
+      .selectAll()
+      .where('email', '=', email)
+      .executeTakeFirst();
+
+    if (!user) {
+      throw new UnauthorizedException('Невірний email або пароль');
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      plainPassword,
+      user.password_hash,
+    );
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Невірний email або пароль');
+    }
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
+  }
+}
+
+
+
+================================================
+FILE: apps/api/src/database/database.module.ts
+================================================
+import { Global, Module } from '@nestjs/common';
+import { Kysely, PostgresDialect } from 'kysely';
+import * as pg from 'pg';
+import { Database } from './database';
+
+// @Global() означає, що підключення до бази буде доступне всюди в проєкті
+@Global()
+@Module({
+  providers: [
+    {
+      provide: 'DB_INSTANCE', // За цим ключем ми будемо викликати базу
+      useFactory: () => {
+        return new Kysely<Database>({
+          dialect: new PostgresDialect({
+            pool: new pg.Pool({
+              // Беремо посилання на базу з нашого .env файлу
+              connectionString: process.env.DATABASE_URL,
+            }),
+          }),
+        });
+      },
+    },
+  ],
+  exports: ['DB_INSTANCE'],
+})
+export class DatabaseModule {}
+
+
+
+================================================
+FILE: apps/api/src/database/database.ts
+================================================
+import { ColumnType, Generated } from 'kysely';
+
+export interface UsersTable {
+  id: Generated<string>;
+  email: string;
+  password_hash: string;
+  // ColumnType<Select, Insert, Update>
+  // База сама ставить дату (тому Insert = string | undefined), а змінювати її не можна (Update = never)
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface WorkspacesTable {
+  id: Generated<string>;
+  user_id: string; // Зв'язок з власником (User)
+  name: string;
+  is_pro: ColumnType<boolean, boolean | undefined, boolean>; // За замовчуванням буде false
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface SessionsTable {
+  id: string; // Це буде наш унікальний Session ID, який ми згенеруємо
+  user_id: string;
+  user_agent: string; // З якого браузера зайшли
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface InvoicesTable {
+  id: Generated<string>;
+  workspace_id: string; // До якого простору належить інвойс
+  client_name: string;
+  amount: number;
+  status: 'PENDING' | 'PAID';
+  pdf_url: string | null; // Спочатку PDF немає, тому null
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+// Головний інтерфейс нашої бази
+export interface Database {
+  users: UsersTable;
+  workspaces: WorkspacesTable;
+  sessions: SessionsTable;
+  invoices: InvoicesTable;
+}
+
+
+
+================================================
+FILE: apps/api/src/database/migrate.ts
+================================================
+import { config } from 'dotenv';
+import * as path from 'path';
+
+// Підключаємо файл .env
+const envPath = path.resolve(__dirname, '../../../../.env');
+config({ path: envPath });
+
+import { Pool } from 'pg';
+import { Kysely, PostgresDialect } from 'kysely';
+import { Migrator } from 'kysely/migration';
+
+// 🎯 ІМПОРТУЄМО НАШУ МІГРАЦІЮ НАПРЯМУ (Це вирішує баг з диском C:\ на Windows!)
+import * as initialSchema from './migrations/001_initial_schema';
+
+async function runMigrations() {
+  const db = new Kysely<any>({
+    dialect: new PostgresDialect({
+      pool: new Pool({ connectionString: process.env.DATABASE_URL }),
+    }),
+  });
+
+  // Передаємо міграцію як об'єкт, без пошуку по папках
+  const migrator = new Migrator({
+    db,
+    provider: {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async getMigrations() {
+        return {
+          '001_initial_schema': initialSchema,
+        };
+      },
+    },
+  });
+
+  console.log('⏳ Запуск міграцій...');
+  const { error, results } = await migrator.migrateToLatest();
+
+  results?.forEach((it) => {
+    if (it.status === 'Success')
+      console.log(`✅ Міграція ${it.migrationName} успішна!`);
+    else console.error(`❌ Помилка міграції ${it.migrationName}`);
+  });
+
+  if (error) {
+    console.error('Критична помилка:', error);
+    process.exit(1);
+  }
+
+  await db.destroy();
+}
+
+runMigrations();
+
+
+
+================================================
+FILE: apps/api/src/database/migrations/001_initial_schema.ts
+================================================
+import { Kysely, sql } from 'kysely';
+
+export async function up(db: Kysely<any>): Promise<void> {
+  // 1. Створюємо таблицю Користувачів
+  await db.schema
+    .createTable('users')
+    .addColumn('id', 'uuid', (col) =>
+      col.primaryKey().defaultTo(sql`gen_random_uuid()`),
+    )
+    .addColumn('email', 'varchar', (col) => col.notNull().unique())
+    .addColumn('password_hash', 'varchar', (col) => col.notNull())
+    .addColumn('created_at', 'timestamp', (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  // 2. Створюємо таблицю Просторів (Workspaces)
+  await db.schema
+    .createTable('workspaces')
+    .addColumn('id', 'uuid', (col) =>
+      col.primaryKey().defaultTo(sql`gen_random_uuid()`),
+    )
+    .addColumn('user_id', 'uuid', (col) =>
+      col.references('users.id').onDelete('cascade').notNull(),
+    )
+    .addColumn('name', 'varchar', (col) => col.notNull())
+    .addColumn('is_pro', 'boolean', (col) => col.defaultTo(false).notNull())
+    .addColumn('created_at', 'timestamp', (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  // 3. Створюємо таблицю Сесій
+  await db.schema
+    .createTable('sessions')
+    .addColumn('id', 'varchar', (col) => col.primaryKey()) // ID сесії генеруємо ми самі
+    .addColumn('user_id', 'uuid', (col) =>
+      col.references('users.id').onDelete('cascade').notNull(),
+    )
+    .addColumn('user_agent', 'varchar', (col) => col.notNull())
+    .addColumn('created_at', 'timestamp', (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+
+  // 4. Створюємо таблицю Інвойсів
+  await db.schema
+    .createTable('invoices')
+    .addColumn('id', 'uuid', (col) =>
+      col.primaryKey().defaultTo(sql`gen_random_uuid()`),
+    )
+    .addColumn('workspace_id', 'uuid', (col) =>
+      col.references('workspaces.id').onDelete('cascade').notNull(),
+    )
+    .addColumn('client_name', 'varchar', (col) => col.notNull())
+    .addColumn('amount', 'integer', (col) => col.notNull()) // Сума в копійках/центах
+    .addColumn('status', 'varchar', (col) => col.defaultTo('PENDING').notNull())
+    .addColumn('pdf_url', 'varchar') // Може бути порожнім (null)
+    .addColumn('created_at', 'timestamp', (col) =>
+      col.defaultTo(sql`now()`).notNull(),
+    )
+    .execute();
+}
+
+export async function down(db: Kysely<any>): Promise<void> {
+  // Видаляємо у зворотному порядку, щоб не зламати зв'язки
+  await db.schema.dropTable('invoices').execute();
+  await db.schema.dropTable('sessions').execute();
+  await db.schema.dropTable('workspaces').execute();
+  await db.schema.dropTable('users').execute();
+}
+
+
+
+================================================
+FILE: apps/api/src/invoices/invoices.controller.spec.ts
+================================================
+import { Test, TestingModule } from '@nestjs/testing';
+import { InvoicesController } from './invoices.controller';
+
+describe('InvoicesController', () => {
+  let controller: InvoicesController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [InvoicesController],
+    }).compile();
+
+    controller = module.get<InvoicesController>(InvoicesController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
+
+
+
+================================================
+FILE: apps/api/src/invoices/invoices.controller.ts
+================================================
+import {
+  Body,
+  Controller,
+  Post,
+  Request,
+  UseGuards,
+  Get,
+  Param,
+} from '@nestjs/common';
+import { Res } from '@nestjs/common';
+import type { Response } from 'express';
+import { AuthGuard } from '../auth/auth.guard';
+import { InvoicesService } from './invoices.service';
+import { CreateInvoiceDto } from './invoices.dto';
+import { PdfService } from './pdf.service';
+
+@Controller('invoices')
+export class InvoicesController {
+  constructor(
+    private readonly invoicesService: InvoicesService,
+    private readonly pdfService: PdfService,
+  ) {}
+
+  @UseGuards(AuthGuard)
+  @Post()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async create(@Request() req: any, @Body() body: CreateInvoiceDto) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const userId = req.user.sub as string;
+
+    return this.invoicesService.createInvoice(
+      userId,
+      body.client_name,
+      body.amount,
+    );
+  }
+
+  @UseGuards(AuthGuard)
+  @Get()
+  async getAll(@Request() req: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const userId = req.user.sub as string;
+    return this.invoicesService.getInvoices(userId);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get(':id/pdf')
+  async downloadPdf(
+    @Request() req: any,
+    @Param('id') invoiceId: string,
+    @Res() res: Response,
+  ) {
+    const userId = req.user.sub as string;
+
+    const invoice = await this.invoicesService.getInvoiceById(
+      userId,
+      invoiceId,
+    );
+
+    const pdfDoc = this.pdfService.generateInvoicePdf(
+      invoice.client_name,
+      invoice.amount,
+    );
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename=invoice-${invoice.client_name}.pdf`,
+    });
+
+    pdfDoc.pipe(res);
+
+    pdfDoc.end();
+  }
+}
+
+
+
+================================================
+FILE: apps/api/src/invoices/invoices.dto.ts
+================================================
+export class CreateInvoiceDto {
+  client_name!: string;
+  amount!: number;
+}
+
+
+
+================================================
+FILE: apps/api/src/invoices/invoices.module.ts
+================================================
+import { Module } from '@nestjs/common';
+import { InvoicesController } from './invoices.controller';
+import { InvoicesService } from './invoices.service';
+import { PdfService } from './pdf.service';
+
+@Module({
+  controllers: [InvoicesController],
+  providers: [InvoicesService, PdfService],
+})
+export class InvoicesModule {}
+
+
+
+================================================
+FILE: apps/api/src/invoices/invoices.service.spec.ts
+================================================
+import { Test, TestingModule } from '@nestjs/testing';
+import { InvoicesService } from './invoices.service';
+
+describe('InvoicesService', () => {
+  let service: InvoicesService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [InvoicesService],
+    }).compile();
+
+    service = module.get<InvoicesService>(InvoicesService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+
+
+
+================================================
+FILE: apps/api/src/invoices/invoices.service.ts
+================================================
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Kysely } from 'kysely';
+import { Database } from '../database/database';
+
+@Injectable()
+export class InvoicesService {
+  constructor(@Inject('DB_INSTANCE') private readonly db: Kysely<Database>) {}
+
+  async createInvoice(userId: string, clientName: string, amount: number) {
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .select('id')
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!workspace) {
+      throw new NotFoundException('Простір не знайдено');
+    }
+    const newInvoice = await this.db
+      .insertInto('invoices')
+      .values({
+        workspace_id: workspace.id,
+        client_name: clientName,
+        amount: amount,
+        status: 'PENDING',
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return newInvoice;
+  }
+
+  async getInvoices(userId: string) {
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .select('id')
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!workspace) {
+      return [];
+    }
+
+    const invoices = await this.db
+      .selectFrom('invoices')
+      .selectAll()
+      .where('workspace_id', '=', workspace.id)
+      .execute();
+
+    return invoices;
+  }
+
+  async getInvoiceById(userId: string, invoiceId: string) {
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .select('id')
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!workspace) {
+      throw new NotFoundException('Простір не знайдено');
+    }
+
+    const invoice = await this.db
+      .selectFrom('invoices')
+      .selectAll()
+      .where('id', '=', invoiceId)
+      .where('workspace_id', '=', workspace.id)
+      .executeTakeFirst();
+
+    if (!invoice) {
+      throw new NotFoundException('Інвойс не знайдено');
+    }
+
+    return invoice;
+  }
+}
+
+
+
+================================================
+FILE: apps/api/src/invoices/pdf.service.ts
+================================================
+import { Injectable } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
+
+@Injectable()
+export class PdfService {
+  generateInvoicePdf(clientName: string, amount: number) {
+    const doc = new PDFDocument({ margin: 50 });
+
+    doc.fontSize(24).text('INVOICE', { align: 'center' }).moveDown(2);
+    doc.fontSize(16).text(`Client: ${clientName}`).moveDown();
+
+    doc
+      .fontSize(16)
+      .text(`Total Amount: $${(amount / 100).toFixed(2)}`)
+      .moveDown(3);
+
+    doc
+      .fontSize(12)
+      .font('Helvetica-Oblique')
+      .text('Thank you for your business!');
+
+    return doc;
+  }
+}
+
+
+
+================================================
+FILE: apps/api/test/app.e2e-spec.ts
+================================================
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { App } from 'supertest/types';
+import { AppModule } from './../src/app.module';
+
+describe('AppController (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  });
+
+  it('/ (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/')
+      .expect(200)
+      .expect('Hello World!');
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+});
+
+
+
+================================================
+FILE: apps/api/test/jest-e2e.json
+================================================
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  }
+}
+
+
+
+================================================
+FILE: apps/web/README.md
+================================================
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+
+================================================
+FILE: apps/web/AGENTS.md
+================================================
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+
+
+
+================================================
+FILE: apps/web/CLAUDE.md
+================================================
+@AGENTS.md
+
+
+
+================================================
+FILE: apps/web/Dockerfile
+================================================
+FROM node:22-alpine
+
+RUN apk add --no-cache git openssh-client && \
+    mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+WORKDIR /app
+
+COPY package.json package-lock.json turbo.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
+
+RUN --mount=type=secret,id=ssh_key \
+    --mount=type=secret,id=npm_token \
+    eval $(ssh-agent -s) && \
+    [ -f /run/secrets/ssh_key ] && ssh-add /run/secrets/ssh_key || true && \
+    [ -f /run/secrets/npm_token ] && echo "//registry.npmjs.org/:_authToken=$(cat /run/secrets/npm_token)" > ~/.npmrc || true && \
+    npm ci && \
+    rm -f ~/.npmrc
+
+COPY . .
+
+RUN --mount=type=secret,id=env_prod,target=.env.production \
+    npx turbo run build --filter=web
+
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+CMD sh -c "cd apps/web && npm run start -- --hostname 0.0.0.0 --port ${PORT:-3000}"
+
+
+================================================
+FILE: apps/web/eslint.config.mjs
+================================================
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+
+
+
+================================================
+FILE: apps/web/next.config.ts
+================================================
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+
+
+
+================================================
+FILE: apps/web/package.json
+================================================
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@hookform/resolvers": "^5.9.1",
+    "@mui/material": "^9.3.1",
+    "@mui/material-nextjs": "^9.3.0",
+    "next": "^16.3.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-hook-form": "^7.87.0",
+    "react-hot-toast": "^2.6.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+
+
+
+================================================
+FILE: apps/web/postcss.config.mjs
+================================================
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+
+
+
+================================================
+FILE: apps/web/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+
+
+
+================================================
+FILE: apps/web/src/app/globals.css
+================================================
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+
+================================================
+FILE: apps/web/src/app/layout.tsx
+================================================
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v14-appRouter";
+import { Providers } from "./providers";
+import "./globals.css";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <AppRouterCacheProvider>
+          <Providers>{children}</Providers>
+        </AppRouterCacheProvider>
+      </body>
+    </html>
+  );
+}
+
+
+
+================================================
+FILE: apps/web/src/app/page.tsx
+================================================
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { InvoiceDTO } from "@micro-invoicer/shared";
+import toast from "react-hot-toast";
+
+export default function Home() {
+  const [invoices, setInvoices] = useState<InvoiceDTO[]>([]);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const getToken = localStorage.getItem("token");
+
+    if (!getToken) {
+      toast.error("Сесія застаріла, введіть логін повторно");
+      router.push("/login");
+      return;
+    } else {
+      async function fetchInvoices() {
+        const response = await fetch("http://localhost:4000/invoices", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${getToken}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setInvoices(data);
+        } else {
+          toast.error("Сесія застаріла, введіть логін повторно");
+          localStorage.removeItem("token");
+          router.push("/login");
+        }
+      }
+
+      fetchInvoices();
+    }
+  }, [router]);
+
+  async function handleDownload(invoiceId: string) {
+    setDownloadingId(invoiceId);
+    const getToken = localStorage.getItem("token");
+    try {
+      if (!getToken) {
+        toast.error("Сесія застаріла, введіть логін повторно");
+        router.push("/login");
+        return;
+      } else {
+        const response = await fetch(
+          `http://localhost:4000/invoices/${invoiceId}/pdf`,
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${getToken}` },
+          },
+        );
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "invoice.pdf";
+          a.click();
+          window.URL.revokeObjectURL(url);
+          toast.success("Інвойс завантажено!");
+        } else {
+          toast.error("Сесія застаріла, введіть логін повторно");
+          localStorage.removeItem("token");
+          router.push("/login");
+        }
+      }
+    } catch {
+      toast.error("Помилка з'єднання з сервером");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  const handleLogout = () => {
+    toast.success("Ви вийшли з аккаунту!");
+    localStorage.removeItem("token");
+    router.push("/login");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-8 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Мої Інвойси</h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push("/create")}
+              className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+            >
+              + Створити
+            </button>
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+            >
+              Вийти
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50/50">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Клієнт
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Сума
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Статус
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Дії
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {invoices.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-6 py-12 text-center text-sm text-gray-500"
+                  >
+                    У вас ще немає інвойсів. Створіть перший!
+                  </td>
+                </tr>
+              ) : (
+                invoices.map((inv) => (
+                  <tr
+                    key={inv.id}
+                    className="group transition-colors hover:bg-gray-50"
+                  >
+                    <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                      {inv.client_name}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                      ${(inv.amount / 100).toFixed(2)}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          inv.status === "PAID"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {inv.status}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
+                      <button
+                        onClick={() => handleDownload(inv.id)}
+                        disabled={downloadingId === inv.id}
+                        title="Завантажити PDF"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50"
+                      >
+                        {downloadingId === inv.id ? (
+                          <svg
+                            className="h-4 w-4 animate-spin text-gray-900"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                        ) : (
+                          <img
+                            src="/download.png"
+                            alt="Завантажити"
+                            className="h-4 w-4 opacity-70 grayscale transition-all hover:grayscale-0"
+                          />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: apps/web/src/app/providers.tsx
+================================================
+"use client";
+
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { Toaster } from "react-hot-toast";
+
+const theme = createTheme({
+  cssVariables: true,
+});
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      {children}
+      <Toaster />
+    </ThemeProvider>
+  );
+}
+
+
+
+================================================
+FILE: apps/web/src/app/create/page.tsx
+================================================
+"use client";
+
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const invoiceSchema = z.object({
+  clientName: z.string().min(2, "Введіть ваше імя"),
+  amount: z.coerce.number().positive("Сума має бути більшою за нуль"),
+});
+
+type InvoiceFormValues = z.infer<typeof invoiceSchema>;
+
+export default function CreateInvoice() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<InvoiceFormValues>({ resolver: zodResolver(invoiceSchema) });
+
+  const router = useRouter();
+
+  async function onSubmit(data: InvoiceFormValues) {
+    try {
+      const getToken = localStorage.getItem("token");
+
+      if (!getToken) {
+        toast.error("Сесія застаріла, введіть логін повторно");
+        router.push("/login");
+        return;
+      } else {
+        const response = await fetch("http://localhost:4000/invoices", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken}`,
+          },
+          body: JSON.stringify({
+            client_name: data.clientName,
+            amount: data.amount,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          toast.error(errorData.message);
+          return;
+        } else {
+          toast.success("Інвойс створено!");
+          router.push("/");
+        }
+      }
+    } catch {
+      toast.error("Помилка з'єднання з сервером");
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-white p-8 shadow-md"
+      >
+        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+          Create Invoice
+        </h2>
+
+        <input
+          {...register("clientName")}
+          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
+          placeholder="Name.."
+        />
+        {errors.clientName && (
+          <p className="text-sm text-red-500">{errors.clientName.message}</p>
+        )}
+
+        <input
+          type="number"
+          {...register("amount")}
+          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
+          placeholder="amount.."
+        />
+        {errors.amount && (
+          <p className="text-sm text-red-500">{errors.amount.message}</p>
+        )}
+
+        <button
+          type="submit"
+          className="mt-2 w-full rounded-md bg-black p-2 font-medium text-white transition-colors hover:bg-gray-800 focus:outline-none"
+        >
+          Зберегти
+        </button>
+      </form>
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: apps/web/src/app/login/page.tsx
+================================================
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const loginSchema = z.object({
+  email: z.string().email("Невірний формат email"),
+  password: z.string().min(6, "Мінімум 6 символів"),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+
+export default function LoginPage() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
+
+  const router = useRouter();
+  const [serverError, setServerError] = useState("");
+
+  async function onSubmit(data: LoginFormValues) {
+    try {
+      const response = await fetch("http://localhost:4000/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setServerError(errorData.message);
+        return;
+      } else {
+        const responseData = await response.json();
+        localStorage.setItem("token", responseData.access_token);
+        router.push("/");
+      }
+    } catch {
+      setServerError("Помилка з'єднання з сервером");
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-white p-8 shadow-md"
+      >
+        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+          Увійти
+        </h2>
+
+        <input
+          {...register("email")}
+          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
+          placeholder="email@gmail.com"
+        />
+        {errors.email && (
+          <p className="text-sm text-red-500">{errors.email.message}</p>
+        )}
+
+        <input
+          {...register("password")}
+          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
+          placeholder="password"
+          type="password"
+        />
+        {errors.password && (
+          <p className="text-sm text-red-500">{errors.password.message}</p>
+        )}
+
+        <button
+          type="submit"
+          className="mt-2 w-full rounded-md bg-black p-2 font-medium text-white transition-colors hover:bg-gray-800 focus:outline-none"
+        >
+          Увійти
+        </button>
+        <p className="mt-4 text-center text-sm text-gray-600">
+          Ще немає акаунту?{" "}
+          <Link
+            href="/register"
+            className="font-medium text-black hover:underline"
+          >
+            Зареєструватися
+          </Link>
+        </p>
+        <p className="text-red-500">{serverError}</p>
+      </form>
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: apps/web/src/app/register/page.tsx
+================================================
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import toast from "react-hot-toast";
+
+const registerSchema = z
+  .object({
+    email: z.string().email("Невірний формат email"),
+    password: z.string().min(6, "Мінімум 6 символів"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Паролі не співпадають",
+    path: ["confirmPassword"],
+  });
+
+type RegisterFormValues = z.infer<typeof registerSchema>;
+
+export default function RegisterPage() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormValues>({ resolver: zodResolver(registerSchema) });
+
+  const router = useRouter();
+
+  async function onSubmit(data: RegisterFormValues) {
+    try {
+      const response = await fetch("http://localhost:4000/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.message);
+        return;
+      } else {
+        toast.success("Реєстрація успішно пройдена, підтвердіть дані!");
+        router.push("/login");
+      }
+    } catch {
+      toast.error("Помилка з'єднання з сервером");
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-white p-8 shadow-md"
+      >
+        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+          Реєстрація
+        </h2>
+
+        <input
+          {...register("email")}
+          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
+          placeholder="email@gmail.com"
+        />
+        {errors.email && (
+          <p className="text-sm text-red-500">{errors.email.message}</p>
+        )}
+
+        <input
+          {...register("password")}
+          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
+          placeholder="password"
+          type="password"
+        />
+        {errors.password && (
+          <p className="text-sm text-red-500">{errors.password.message}</p>
+        )}
+        <input
+          {...register("confirmPassword")}
+          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
+          placeholder="confirm password"
+          type="password"
+        />
+        {errors.confirmPassword && (
+          <p className="text-sm text-red-500">
+            {errors.confirmPassword.message}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          className="mt-2 w-full rounded-md bg-black p-2 font-medium text-white transition-colors hover:bg-gray-800 focus:outline-none"
+        >
+          Зареєструватися
+        </button>
+        <p className="mt-4 text-center text-sm text-gray-600">
+          Вже є акаунт?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-black hover:underline"
+          >
+            Увійти
+          </Link>
+        </p>
+      </form>
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: packages/shared/package.json
+================================================
+{
+  "name": "@micro-invoicer/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
+
+
+================================================
+FILE: packages/shared/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "declaration": true,
+    "strict": true,
+    "outDir": "./dist",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*"]
+}
+
+
+================================================
+FILE: packages/shared/src/index.ts
+================================================
+export interface InvoiceDTO {
+  id: string;
+  client_name: string;
+  amount: number;
+  status: "PENDING" | "PAID";
+}
+
+

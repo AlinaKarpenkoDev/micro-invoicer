@@ -1,0 +1,14 @@
+node_modules
+.pnp
+.pnp.js
+coverage
+.next/
+out/
+build
+dist
+.DS_Store
+*.pem
+.env
+.env*.local
+.vercel
+.turbo
