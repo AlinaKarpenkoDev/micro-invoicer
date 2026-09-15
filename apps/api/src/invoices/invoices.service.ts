@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Database } from '../database/database';
 
@@ -9,12 +14,26 @@ export class InvoicesService {
   async createInvoice(userId: string, clientName: string, amount: number) {
     const workspace = await this.db
       .selectFrom('workspaces')
-      .select('id')
+      .select(['id', 'is_pro'])
       .where('user_id', '=', userId)
       .executeTakeFirst();
 
     if (!workspace) {
       throw new NotFoundException('Простір не знайдено');
+    }
+
+    if (!workspace.is_pro) {
+      const { count } = await this.db
+        .selectFrom('invoices')
+        .select((eb) => eb.fn.count('id').as('count'))
+        .where('workspace_id', '=', workspace.id)
+        .executeTakeFirstOrThrow();
+
+      const currentInvoicesCount = Number(count);
+
+      if (currentInvoicesCount >= 3) {
+        throw new ForbiddenException('Ліміт безкоштовних інвойсів вичерпано');
+      }
     }
     const newInvoice = await this.db
       .insertInto('invoices')
@@ -33,12 +52,12 @@ export class InvoicesService {
   async getInvoices(userId: string) {
     const workspace = await this.db
       .selectFrom('workspaces')
-      .select('id')
+      .select(['id', 'is_pro'])
       .where('user_id', '=', userId)
       .executeTakeFirst();
 
     if (!workspace) {
-      return [];
+      return { data: [], isPro: false };
     }
 
     const invoices = await this.db
@@ -47,7 +66,10 @@ export class InvoicesService {
       .where('workspace_id', '=', workspace.id)
       .execute();
 
-    return invoices;
+    return {
+      data: invoices,
+      isPro: workspace.is_pro,
+    };
   }
 
   async getInvoiceById(userId: string, invoiceId: string) {
@@ -61,17 +83,26 @@ export class InvoicesService {
       throw new NotFoundException('Простір не знайдено');
     }
 
-    const invoice = await this.db
+    const invoices = await this.db
       .selectFrom('invoices')
       .selectAll()
       .where('id', '=', invoiceId)
       .where('workspace_id', '=', workspace.id)
       .executeTakeFirst();
 
-    if (!invoice) {
+    if (!invoices) {
       throw new NotFoundException('Інвойс не знайдено');
     }
+    return invoices;
+  }
 
-    return invoice;
+  async upgradeWorkspace(userId: string) {
+    const workspace = await this.db
+      .updateTable('workspaces')
+      .set({ is_pro: true })
+      .where('user_id', '=', userId)
+      .execute();
+
+    return { success: true, message: 'Оновлено до Pro!' };
   }
 }

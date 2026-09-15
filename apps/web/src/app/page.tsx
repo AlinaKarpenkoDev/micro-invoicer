@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 export default function Home() {
   const [invoices, setInvoices] = useState<InvoiceDTO[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [isPro, setIsPro] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -23,8 +24,9 @@ export default function Home() {
           headers: { Authorization: `Bearer ${getToken}` },
         });
         if (response.ok) {
-          const data = await response.json();
-          setInvoices(data);
+          const responseData = await response.json();
+          setInvoices(responseData.data);
+          setIsPro(responseData.isPro);
         } else {
           toast.error("Сесія застаріла, введіть логін повторно");
           localStorage.removeItem("token");
@@ -89,16 +91,17 @@ export default function Home() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Мої Інвойси</h1>
+
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push("/create")}
-              className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+              className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none"
             >
               + Створити
             </button>
             <button
               onClick={handleLogout}
-              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2 border-none outline-none"
             >
               Вийти
             </button>
@@ -161,7 +164,7 @@ export default function Home() {
                         onClick={() => handleDownload(inv.id)}
                         disabled={downloadingId === inv.id}
                         title="Завантажити PDF"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 border-none outline-none"
                       >
                         {downloadingId === inv.id ? (
                           <svg
@@ -199,6 +202,38 @@ export default function Home() {
             </tbody>
           </table>
         </div>
+        {!isPro && (
+          <div className="mt-8">
+            {invoices.length >= 3 ? (
+              <div className="flex items-center justify-between rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-6 shadow-sm">
+                <div className="flex flex-col">
+                  <span className="text-lg font-bold text-indigo-900">
+                    Досягнуто ліміт Free-тарифу
+                  </span>
+                  <span className="mt-1 text-sm text-indigo-700">
+                    Оновіть тариф до Pro, щоб створювати безліч інвойсів без
+                    обмежень.
+                  </span>
+                </div>
+                <button
+                  onClick={() => router.push("/pro")}
+                  className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                >
+                  Upgrade to Pro
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-5 text-sm text-gray-600 shadow-sm">
+                <span className="font-medium text-gray-700">
+                  Використано безкоштовних інвойсів:
+                </span>
+                <span className="w-8 text-right font-bold text-gray-900">
+                  {invoices.length} / 3
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -71,4 +71,11 @@ export class InvoicesController {
 
     pdfDoc.end();
   }
+
+  @UseGuards(AuthGuard)
+  @Post('upgrade')
+  async upgradeToPro(@Request() req: any) {
+    const userId = req.user.sub as string;
+    return this.invoicesService.upgradeWorkspace(userId);
+  }
 }
