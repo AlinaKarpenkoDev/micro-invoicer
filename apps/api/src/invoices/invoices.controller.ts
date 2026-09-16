@@ -7,8 +7,6 @@ import {
   Get,
   Param,
 } from '@nestjs/common';
-import { Res } from '@nestjs/common';
-import type { Response } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './invoices.dto';
@@ -45,31 +43,22 @@ export class InvoicesController {
 
   @UseGuards(AuthGuard)
   @Get(':id/pdf')
-  async downloadPdf(
-    @Request() req: any,
-    @Param('id') invoiceId: string,
-    @Res() res: Response,
-  ) {
+  async downloadPdf(@Request() req: any, @Param('id') id: string) {
     const userId = req.user.sub as string;
+    const invoice = await this.invoicesService.getInvoiceById(userId, id);
 
-    const invoice = await this.invoicesService.getInvoiceById(
-      userId,
-      invoiceId,
-    );
+    if (invoice.pdf_url) {
+      return { url: invoice.pdf_url };
+    }
 
-    const pdfDoc = this.pdfService.generateInvoicePdf(
+    const pdfUrl = await this.pdfService.generateInvoicePdf(
       invoice.client_name,
-      invoice.amount,
+      Number(invoice.amount),
     );
 
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename=invoice-${invoice.client_name}.pdf`,
-    });
+    await this.invoicesService.savePdfUrl(id, pdfUrl);
 
-    pdfDoc.pipe(res);
-
-    pdfDoc.end();
+    return { url: pdfUrl };
   }
 
   @UseGuards(AuthGuard)

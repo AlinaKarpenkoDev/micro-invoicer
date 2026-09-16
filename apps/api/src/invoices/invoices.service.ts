@@ -105,4 +105,12 @@ export class InvoicesService {
 
     return { success: true, message: 'Оновлено до Pro!' };
   }
+
+  async savePdfUrl(invoiceId: string, pdfUrl: string) {
+    await this.db
+      .updateTable('invoices')
+      .set({ pdf_url: pdfUrl })
+      .where('id', '=', invoiceId)
+      .execute();
+  }
 }

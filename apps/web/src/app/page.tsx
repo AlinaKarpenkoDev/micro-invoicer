@@ -55,14 +55,9 @@ export default function Home() {
           },
         );
         if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "invoice.pdf";
-          a.click();
-          window.URL.revokeObjectURL(url);
-          toast.success("Інвойс завантажено!");
+          const data = await response.json();
+          window.open(data.url, "_blank");
+          toast.success("Інвойс відкрито!");
         } else {
           if (response.status === 401 || response.status === 403) {
             toast.error("Сесія застаріла, введіть логін повторно");
