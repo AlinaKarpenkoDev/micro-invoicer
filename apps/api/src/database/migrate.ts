@@ -1,16 +1,14 @@
-import { config } from 'dotenv';
 import * as path from 'path';
+import * as initialSchema from './migrations/001_initial_schema';
+import * as addRolesSchema from './migrations/002_add_roles';
 
-// Підключаємо файл .env
-const envPath = path.resolve(__dirname, '../../../../.env');
-config({ path: envPath });
-
+import { config } from 'dotenv';
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 
-// 🎯 ІМПОРТУЄМО НАШУ МІГРАЦІЮ НАПРЯМУ (Це вирішує баг з диском C:\ на Windows!)
-import * as initialSchema from './migrations/001_initial_schema';
+const envPath = path.resolve(__dirname, '../../../../.env');
+config({ path: envPath });
 
 async function runMigrations() {
   const db = new Kysely<any>({
@@ -27,6 +25,7 @@ async function runMigrations() {
       async getMigrations() {
         return {
           '001_initial_schema': initialSchema,
+          '002_add_roles': addRolesSchema,
         };
       },
     },

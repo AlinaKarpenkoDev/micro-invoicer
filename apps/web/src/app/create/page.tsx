@@ -44,6 +44,10 @@ export default function CreateInvoice() {
         });
 
         if (!response.ok) {
+          if (response.status === 403) {
+            router.push("/pro");
+          }
+
           const errorData = await response.json();
           toast.error(errorData.message);
           return;

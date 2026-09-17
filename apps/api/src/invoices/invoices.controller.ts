@@ -7,9 +7,9 @@ import {
   Get,
   Param,
 } from '@nestjs/common';
-import { Res } from '@nestjs/common';
-import type { Response } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './invoices.dto';
 import { PdfService } from './pdf.service';
@@ -45,30 +45,37 @@ export class InvoicesController {
 
   @UseGuards(AuthGuard)
   @Get(':id/pdf')
-  async downloadPdf(
-    @Request() req: any,
-    @Param('id') invoiceId: string,
-    @Res() res: Response,
-  ) {
+  async downloadPdf(@Request() req: any, @Param('id') id: string) {
     const userId = req.user.sub as string;
+    const invoice = await this.invoicesService.getInvoiceById(userId, id);
 
-    const invoice = await this.invoicesService.getInvoiceById(
-      userId,
-      invoiceId,
-    );
+    if (invoice.pdf_url) {
+      return { url: invoice.pdf_url };
+    }
 
-    const pdfDoc = this.pdfService.generateInvoicePdf(
+    const pdfUrl = await this.pdfService.generateInvoicePdf(
       invoice.client_name,
-      invoice.amount,
+      Number(invoice.amount),
+      invoice.is_pro,
     );
 
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename=invoice-${invoice.client_name}.pdf`,
-    });
+    await this.invoicesService.savePdfUrl(id, pdfUrl);
 
-    pdfDoc.pipe(res);
+    return { url: pdfUrl };
+  }
 
-    pdfDoc.end();
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Post('upgrade')
+  async upgradeToPro(@Request() req: any) {
+    const userId = req.user.sub as string;
+    return this.invoicesService.upgradeWorkspace(userId);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/workspaces')
+  async getAdminWorkspaces() {
+    return this.invoicesService.getAllWorkspacesForAdmin();
   }
 }

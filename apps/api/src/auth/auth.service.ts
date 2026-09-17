@@ -25,6 +25,7 @@ export class AuthService {
         .values({
           email: email,
           password_hash: hashedPassword,
+          role: 'OWNER',
         })
         .returning(['id', 'email', 'created_at'])
         .executeTakeFirstOrThrow();
@@ -69,6 +70,7 @@ export class AuthService {
     const payload = {
       sub: user.id,
       email: user.email,
+      role: user.role,
     };
 
     return {

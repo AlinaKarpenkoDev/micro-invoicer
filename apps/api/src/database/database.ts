@@ -4,6 +4,7 @@ export interface UsersTable {
   id: Generated<string>;
   email: string;
   password_hash: string;
+  role: 'OWNER' | 'ASSISTANT' | 'ADMIN';
   // ColumnType<Select, Insert, Update>
   // База сама ставить дату (тому Insert = string | undefined), а змінювати її не можна (Update = never)
   created_at: ColumnType<Date, string | undefined, never>;
@@ -11,14 +12,14 @@ export interface UsersTable {
 
 export interface WorkspacesTable {
   id: Generated<string>;
-  user_id: string; // Зв'язок з власником (User)
+  user_id: string;
   name: string;
-  is_pro: ColumnType<boolean, boolean | undefined, boolean>; // За замовчуванням буде false
+  is_pro: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
 export interface SessionsTable {
-  id: string; // Це буде наш унікальний Session ID, який ми згенеруємо
+  id: string;
   user_id: string;
   user_agent: string; // З якого браузера зайшли
   created_at: ColumnType<Date, string | undefined, never>;

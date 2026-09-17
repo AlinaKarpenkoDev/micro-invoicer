@@ -1,3 +1,14 @@
+# Micro-Invoicer Project
+
+## 🚩 Completed Milestones (1 & 2)
+
+- [x] Monorepo setup (Turborepo, Next.js, NestJS)
+- [x] Database configuration (PostgreSQL + Kysely)
+- [x] JWT Authentication flow (Register, Login, Logout)
+- [x] Dynamic Invoice Creation (React Hook Form + Zod)
+- [x] PDF Generation via pdfkit (Server-side streaming)
+- [x] UI/UX Improvements (Toast notifications, loading states)
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
