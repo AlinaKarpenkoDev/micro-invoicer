@@ -75,7 +75,7 @@ export class InvoicesService {
   async getInvoiceById(userId: string, invoiceId: string) {
     const workspace = await this.db
       .selectFrom('workspaces')
-      .select('id')
+      .select(['id', 'is_pro'])
       .where('user_id', '=', userId)
       .executeTakeFirst();
 
@@ -93,7 +93,7 @@ export class InvoicesService {
     if (!invoices) {
       throw new NotFoundException('Інвойс не знайдено');
     }
-    return invoices;
+    return { ...invoices, is_pro: workspace.is_pro };
   }
 
   async upgradeWorkspace(userId: string) {
@@ -112,5 +112,22 @@ export class InvoicesService {
       .set({ pdf_url: pdfUrl })
       .where('id', '=', invoiceId)
       .execute();
+  }
+
+  async getAllWorkspacesForAdmin() {
+    // Дістаємо всі простори разом з імейлами їх власників
+    const workspaces = await this.db
+      .selectFrom('workspaces')
+      .innerJoin('users', 'users.id', 'workspaces.user_id')
+      .select([
+        'workspaces.id as workspace_id',
+        'workspaces.name as workspace_name',
+        'workspaces.is_pro',
+        'users.email as owner_email',
+        'users.id as owner_id',
+      ])
+      .execute();
+
+    return workspaces;
   }
 }

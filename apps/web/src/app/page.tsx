@@ -8,6 +8,7 @@ export default function Home() {
   const [invoices, setInvoices] = useState<InvoiceDTO[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -18,6 +19,9 @@ export default function Home() {
       router.push("/login");
       return;
     } else {
+      const payload = JSON.parse(atob(getToken.split(".")[1]));
+      setRole(payload.role);
+
       async function fetchInvoices() {
         const response = await fetch("http://localhost:4000/invoices", {
           method: "GET",
@@ -76,9 +80,9 @@ export default function Home() {
   }
 
   const handleLogout = () => {
-    toast.success("Ви вийшли з аккаунту!");
     localStorage.removeItem("token");
     router.push("/login");
+    toast.success("Ви вийшли з аккаунту!");
   };
 
   return (
@@ -90,7 +94,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push("/create")}
-              className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none"
+              className="inline-flex items-center justify-center rounded-md bg-zinc-800  px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none"
             >
               + Створити
             </button>
@@ -197,7 +201,7 @@ export default function Home() {
             </tbody>
           </table>
         </div>
-        {!isPro && (
+        {!isPro && role === "OWNER" && (
           <div className="mt-8">
             {invoices.length >= 3 ? (
               <div className="flex items-center justify-between rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-6 shadow-sm">
@@ -225,6 +229,14 @@ export default function Home() {
                 <span className="w-8 text-right font-bold text-gray-900">
                   {invoices.length} / 3
                 </span>
+                {role === "OWNER" && (
+                  <button
+                    onClick={() => router.push("/pro")}
+                    className="rounded-xl bg-zinc-700 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-zinc-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 border-none outline-none"
+                  >
+                    Upgrade to Pro
+                  </button>
+                )}
               </div>
             )}
           </div>

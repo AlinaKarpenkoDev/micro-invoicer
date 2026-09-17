@@ -8,6 +8,8 @@ import {
   Param,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './invoices.dto';
 import { PdfService } from './pdf.service';
@@ -54,6 +56,7 @@ export class InvoicesController {
     const pdfUrl = await this.pdfService.generateInvoicePdf(
       invoice.client_name,
       Number(invoice.amount),
+      invoice.is_pro,
     );
 
     await this.invoicesService.savePdfUrl(id, pdfUrl);
@@ -61,10 +64,18 @@ export class InvoicesController {
     return { url: pdfUrl };
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER')
   @Post('upgrade')
   async upgradeToPro(@Request() req: any) {
     const userId = req.user.sub as string;
     return this.invoicesService.upgradeWorkspace(userId);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/workspaces')
+  async getAdminWorkspaces() {
+    return this.invoicesService.getAllWorkspacesForAdmin();
   }
 }

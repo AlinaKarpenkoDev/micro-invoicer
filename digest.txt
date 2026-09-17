@@ -26,13 +26,16 @@ Directory structure:
     │   │   │   │   ├── auth.dto.ts
     │   │   │   │   ├── auth.guard.ts
     │   │   │   │   ├── auth.module.ts
-    │   │   │   │   └── auth.service.ts
+    │   │   │   │   ├── auth.service.ts
+    │   │   │   │   ├── roles.decorator.ts
+    │   │   │   │   └── roles.guard.ts
     │   │   │   ├── database/
     │   │   │   │   ├── database.module.ts
     │   │   │   │   ├── database.ts
     │   │   │   │   ├── migrate.ts
     │   │   │   │   └── migrations/
-    │   │   │   │       └── 001_initial_schema.ts
+    │   │   │   │       ├── 001_initial_schema.ts
+    │   │   │   │       └── 002_add_roles.ts
     │   │   │   └── invoices/
     │   │   │       ├── invoices.controller.spec.ts
     │   │   │       ├── invoices.controller.ts
@@ -738,6 +741,7 @@ export class AuthService {
         .values({
           email: email,
           password_hash: hashedPassword,
+          role: 'OWNER',
         })
         .returning(['id', 'email', 'created_at'])
         .executeTakeFirstOrThrow();
@@ -782,6 +786,7 @@ export class AuthService {
     const payload = {
       sub: user.id,
       email: user.email,
+      role: user.role,
     };
 
     return {
@@ -790,6 +795,21 @@ export class AuthService {
   }
 }
 
+
+
+================================================
+FILE: apps/api/src/auth/roles.decorator.ts
+================================================
+import { SetMetadata } from '@nestjs/common';
+
+export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
+
+
+
+================================================
+FILE: apps/api/src/auth/roles.guard.ts
+================================================
+[Binary file]
 
 
 ================================================
@@ -827,68 +847,23 @@ export class DatabaseModule {}
 ================================================
 FILE: apps/api/src/database/database.ts
 ================================================
-import { ColumnType, Generated } from 'kysely';
-
-export interface UsersTable {
-  id: Generated<string>;
-  email: string;
-  password_hash: string;
-  // ColumnType<Select, Insert, Update>
-  // База сама ставить дату (тому Insert = string | undefined), а змінювати її не можна (Update = never)
-  created_at: ColumnType<Date, string | undefined, never>;
-}
-
-export interface WorkspacesTable {
-  id: Generated<string>;
-  user_id: string; // Зв'язок з власником (User)
-  name: string;
-  is_pro: ColumnType<boolean, boolean | undefined, boolean>; // За замовчуванням буде false
-  created_at: ColumnType<Date, string | undefined, never>;
-}
-
-export interface SessionsTable {
-  id: string; // Це буде наш унікальний Session ID, який ми згенеруємо
-  user_id: string;
-  user_agent: string; // З якого браузера зайшли
-  created_at: ColumnType<Date, string | undefined, never>;
-}
-
-export interface InvoicesTable {
-  id: Generated<string>;
-  workspace_id: string; // До якого простору належить інвойс
-  client_name: string;
-  amount: number;
-  status: 'PENDING' | 'PAID';
-  pdf_url: string | null; // Спочатку PDF немає, тому null
-  created_at: ColumnType<Date, string | undefined, never>;
-}
-
-// Головний інтерфейс нашої бази
-export interface Database {
-  users: UsersTable;
-  workspaces: WorkspacesTable;
-  sessions: SessionsTable;
-  invoices: InvoicesTable;
-}
-
+[Binary file]
 
 
 ================================================
 FILE: apps/api/src/database/migrate.ts
 ================================================
-import { config } from 'dotenv';
 import * as path from 'path';
+import * as initialSchema from './migrations/001_initial_schema';
+import * as addRolesSchema from './migrations/002_add_roles';
 
-// Підключаємо файл .env
-const envPath = path.resolve(__dirname, '../../../../.env');
-config({ path: envPath });
-
+import { config } from 'dotenv';
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
 
-// 🎯 ІМПОРТУЄМО НАШУ МІГРАЦІЮ НАПРЯМУ (Це вирішує баг з диском C:\ на Windows!)
-import * as initialSchema from './migrations/001_initial_schema';
+const envPath = path.resolve(__dirname, '../../../../.env');
+config({ path: envPath });
 
 async function runMigrations() {
   const db = new Kysely<any>({
@@ -905,6 +880,7 @@ async function runMigrations() {
       async getMigrations() {
         return {
           '001_initial_schema': initialSchema,
+          '002_add_roles': addRolesSchema,
         };
       },
     },
@@ -1009,6 +985,24 @@ export async function down(db: Kysely<any>): Promise<void> {
 
 
 ================================================
+FILE: apps/api/src/database/migrations/002_add_roles.ts
+================================================
+import { Kysely } from 'kysely';
+
+export async function up(db: Kysely<any>): Promise<void> {
+  await db.schema
+    .alterTable('users')
+    .addColumn('role', 'varchar', (col) => col.defaultTo('OWNER').notNull())
+    .execute();
+}
+
+export async function down(db: Kysely<any>): Promise<void> {
+  await db.schema.alterTable('users').dropColumn('role').execute();
+}
+
+
+
+================================================
 FILE: apps/api/src/invoices/invoices.controller.spec.ts
 ================================================
 import { Test, TestingModule } from '@nestjs/testing';
@@ -1044,9 +1038,9 @@ import {
   Get,
   Param,
 } from '@nestjs/common';
-import { Res } from '@nestjs/common';
-import type { Response } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './invoices.dto';
 import { PdfService } from './pdf.service';
@@ -1082,24 +1076,38 @@ export class InvoicesController {
 
   @UseGuards(AuthGuard)
   @Get(':id/pdf')
-  async downloadPdf(@Param('id') id: string) {
-    const invoice = await this.invoicesService.getInvoiceById(id);
+  async downloadPdf(@Request() req: any, @Param('id') id: string) {
+    const userId = req.user.sub as string;
+    const invoice = await this.invoicesService.getInvoiceById(userId, id);
 
-    // 2. Генеруємо PDF, відправляємо в хмару і отримуємо URL
+    if (invoice.pdf_url) {
+      return { url: invoice.pdf_url };
+    }
+
     const pdfUrl = await this.pdfService.generateInvoicePdf(
       invoice.client_name,
       Number(invoice.amount),
+      invoice.is_pro,
     );
 
-    // 3. Віддаємо URL фронтенду
+    await this.invoicesService.savePdfUrl(id, pdfUrl);
+
     return { url: pdfUrl };
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER')
   @Post('upgrade')
   async upgradeToPro(@Request() req: any) {
     const userId = req.user.sub as string;
     return this.invoicesService.upgradeWorkspace(userId);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Get('admin/workspaces')
+  async getAdminWorkspaces() {
+    return this.invoicesService.getAllWorkspacesForAdmin();
   }
 }
 
@@ -1235,7 +1243,7 @@ export class InvoicesService {
   async getInvoiceById(userId: string, invoiceId: string) {
     const workspace = await this.db
       .selectFrom('workspaces')
-      .select('id')
+      .select(['id', 'is_pro'])
       .where('user_id', '=', userId)
       .executeTakeFirst();
 
@@ -1253,7 +1261,7 @@ export class InvoicesService {
     if (!invoices) {
       throw new NotFoundException('Інвойс не знайдено');
     }
-    return invoices;
+    return { ...invoices, is_pro: workspace.is_pro };
   }
 
   async upgradeWorkspace(userId: string) {
@@ -1264,6 +1272,31 @@ export class InvoicesService {
       .execute();
 
     return { success: true, message: 'Оновлено до Pro!' };
+  }
+
+  async savePdfUrl(invoiceId: string, pdfUrl: string) {
+    await this.db
+      .updateTable('invoices')
+      .set({ pdf_url: pdfUrl })
+      .where('id', '=', invoiceId)
+      .execute();
+  }
+
+  async getAllWorkspacesForAdmin() {
+    // Дістаємо всі простори разом з імейлами їх власників
+    const workspaces = await this.db
+      .selectFrom('workspaces')
+      .innerJoin('users', 'users.id', 'workspaces.user_id')
+      .select([
+        'workspaces.id as workspace_id',
+        'workspaces.name as workspace_name',
+        'workspaces.is_pro',
+        'users.email as owner_email',
+        'users.id as owner_id',
+      ])
+      .execute();
+
+    return workspaces;
   }
 }
 
@@ -1287,7 +1320,7 @@ export class PdfService {
     },
   });
 
-  async generateInvoicePdf(clientName: string, amount: number) {
+  async generateInvoicePdf(clientName: string, amount: number, isPro: boolean) {
     const doc = new PDFDocument({ margin: 50 });
 
     doc.fontSize(24).text('INVOICE', { align: 'center' }).moveDown(2);
@@ -1302,6 +1335,20 @@ export class PdfService {
       .fontSize(12)
       .font('Helvetica-Oblique')
       .text('Thank you for your business!');
+
+    if (!isPro) {
+      doc.save();
+      doc
+        .fontSize(40)
+        .fillColor('gray')
+        .opacity(0.2)
+        .rotate(-30, { origin: [doc.page.width / 2, doc.page.height / 2] })
+        .text('Created in MicroInvoicer', 0, doc.page.height / 2, {
+          align: 'center',
+          width: doc.page.width,
+        });
+      doc.restore();
+    }
 
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
       const chunks: Uint8Array[] = [];
@@ -1685,6 +1732,7 @@ export default function Home() {
   const [invoices, setInvoices] = useState<InvoiceDTO[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -1695,6 +1743,9 @@ export default function Home() {
       router.push("/login");
       return;
     } else {
+      const payload = JSON.parse(atob(getToken.split(".")[1]));
+      setRole(payload.role);
+
       async function fetchInvoices() {
         const response = await fetch("http://localhost:4000/invoices", {
           method: "GET",
@@ -1732,14 +1783,9 @@ export default function Home() {
           },
         );
         if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "invoice.pdf";
-          a.click();
-          window.URL.revokeObjectURL(url);
-          toast.success("Інвойс завантажено!");
+          const data = await response.json();
+          window.open(data.url, "_blank");
+          toast.success("Інвойс відкрито!");
         } else {
           if (response.status === 401 || response.status === 403) {
             toast.error("Сесія застаріла, введіть логін повторно");
@@ -1758,9 +1804,9 @@ export default function Home() {
   }
 
   const handleLogout = () => {
-    toast.success("Ви вийшли з аккаунту!");
     localStorage.removeItem("token");
     router.push("/login");
+    toast.success("Ви вийшли з аккаунту!");
   };
 
   return (
@@ -1772,7 +1818,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push("/create")}
-              className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none"
+              className="inline-flex items-center justify-center rounded-md bg-zinc-800  px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none"
             >
               + Створити
             </button>
@@ -1879,7 +1925,7 @@ export default function Home() {
             </tbody>
           </table>
         </div>
-        {!isPro && (
+        {!isPro && role === "OWNER" && (
           <div className="mt-8">
             {invoices.length >= 3 ? (
               <div className="flex items-center justify-between rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-6 shadow-sm">
@@ -1907,6 +1953,14 @@ export default function Home() {
                 <span className="w-8 text-right font-bold text-gray-900">
                   {invoices.length} / 3
                 </span>
+                {role === "OWNER" && (
+                  <button
+                    onClick={() => router.push("/pro")}
+                    className="rounded-xl bg-zinc-700 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-zinc-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 border-none outline-none"
+                  >
+                    Upgrade to Pro
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -2062,6 +2116,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import toast from "react-hot-toast";
 
 const loginSchema = z.object({
   email: z.string().email("Невірний формат email"),
@@ -2078,7 +2133,6 @@ export default function LoginPage() {
   } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
   const router = useRouter();
-  const [serverError, setServerError] = useState("");
 
   async function onSubmit(data: LoginFormValues) {
     try {
@@ -2090,15 +2144,16 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        setServerError(errorData.message);
+        toast.error(errorData.message);
         return;
       } else {
         const responseData = await response.json();
         localStorage.setItem("token", responseData.access_token);
         router.push("/");
+        toast.success("Вхід виконано!");
       }
     } catch {
-      setServerError("Помилка з'єднання з сервером");
+      toast.error("Помилка з'єднання з сервером");
     }
   }
 
@@ -2146,7 +2201,6 @@ export default function LoginPage() {
             Зареєструватися
           </Link>
         </p>
-        <p className="text-red-500">{serverError}</p>
       </form>
     </div>
   );

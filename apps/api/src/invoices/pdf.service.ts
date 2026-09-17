@@ -13,7 +13,7 @@ export class PdfService {
     },
   });
 
-  async generateInvoicePdf(clientName: string, amount: number) {
+  async generateInvoicePdf(clientName: string, amount: number, isPro: boolean) {
     const doc = new PDFDocument({ margin: 50 });
 
     doc.fontSize(24).text('INVOICE', { align: 'center' }).moveDown(2);
@@ -28,6 +28,20 @@ export class PdfService {
       .fontSize(12)
       .font('Helvetica-Oblique')
       .text('Thank you for your business!');
+
+    if (!isPro) {
+      doc.save();
+      doc
+        .fontSize(40)
+        .fillColor('gray')
+        .opacity(0.2)
+        .rotate(-30, { origin: [doc.page.width / 2, doc.page.height / 2] })
+        .text('Created in MicroInvoicer', 0, doc.page.height / 2, {
+          align: 'center',
+          width: doc.page.width,
+        });
+      doc.restore();
+    }
 
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
       const chunks: Uint8Array[] = [];

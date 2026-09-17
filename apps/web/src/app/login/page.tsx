@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import toast from "react-hot-toast";
 
 const loginSchema = z.object({
   email: z.string().email("Невірний формат email"),
@@ -22,7 +23,6 @@ export default function LoginPage() {
   } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
   const router = useRouter();
-  const [serverError, setServerError] = useState("");
 
   async function onSubmit(data: LoginFormValues) {
     try {
@@ -34,15 +34,16 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        setServerError(errorData.message);
+        toast.error(errorData.message);
         return;
       } else {
         const responseData = await response.json();
         localStorage.setItem("token", responseData.access_token);
+        toast.success("Вхід виконано!");
         router.push("/");
       }
     } catch {
-      setServerError("Помилка з'єднання з сервером");
+      toast.error("Помилка з'єднання з сервером");
     }
   }
 
@@ -90,7 +91,6 @@ export default function LoginPage() {
             Зареєструватися
           </Link>
         </p>
-        <p className="text-red-500">{serverError}</p>
       </form>
     </div>
   );
