@@ -3,6 +3,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Kysely } from 'kysely';
@@ -71,6 +72,29 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
+  }
+
+  async impersonateUser(adminId: string, targetUserId: string) {
+    const user = await this.db
+      .selectFrom('users')
+      .select(['id', 'email', 'role'])
+      .where('id', '=', targetUserId)
+      .executeTakeFirst();
+
+    if (!user) {
+      throw new NotFoundException('Сторінку не знайдено');
+    }
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      is_impersonating: true,
     };
 
     return {
