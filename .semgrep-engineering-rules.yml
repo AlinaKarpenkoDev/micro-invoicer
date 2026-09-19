@@ -1,0 +1,295 @@
+# ==============================================================================
+# .semgrep-engineering-rules.yml
+# Класичні інженерні антипатерни в архітектурі, коді та тестах
+#
+# Категорії:
+# 1. Архітектурні та структурні (God Object, Lasagna Code, Circular Dependencies)
+# 2. Проєктування та ООП (Poltergeists, Lava Flow, Ghost Classes)
+# 3. Обробка помилок і стабільність (Catch-All, Error Swallowing, Magic Numbers, Blind Trust)
+# 4. Стан, асинхронність і паралелізм (Global State Pollution, Fire and Forget, Sync-in-Async)
+# 5. Якість коду та Clean Code (Reinventing the Wheel, Boolean Trap, Dead Code)
+# 6. Тестування (The Liar, Mock Happy, Slow Poke Tests)
+# ==============================================================================
+
+rules:
+  # ============================================================================
+  # 1. АРХІТЕКТУРА ТА ПРОЄКТУВАННЯ
+  # ============================================================================
+
+  - id: engineering-anti-pattern-poltergeist-class
+    message: |
+      Класичний антипатерн (Poltergeists / Ghost Classes):
+      Клас із єдиним методом, який лише делегує виклик іншому об'єкту.
+      Такі короткоживучі 'класи-привиди' роздувають архітектуру (Lasagna Code)
+      без додавання цінності. Замініть клас на просту чисту функцію.
+    severity: INFO
+    languages: [ts, js]
+    pattern: |
+      class $CLASS {
+        execute($...ARGS) {
+          return $TARGET.$METHOD($...ARGS);
+        }
+      }
+    metadata:
+      category: engineering-antipattern
+      subcategory: oop-design
+      impact: LOW
+
+  - id: engineering-anti-pattern-lava-flow-dead-branch
+    message: |
+      Класичний антипатерн (Lava Flow / Dead Code):
+      Залишок мертвого коду в блоці 'if (false) { ... }' або 'if (0) { ... }'.
+      Не залишайте закоментовані чи вимкнені гілки в кодовій базі.
+      Історія змін надійно зберігається у Git — видаляйте мертвий код.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: |
+          if (false) {
+            ...
+          }
+      - pattern: |
+          if (0) {
+            ...
+          }
+    metadata:
+      category: engineering-antipattern
+      subcategory: clean-code
+      impact: MEDIUM
+
+  # ============================================================================
+  # 2. ОБРОБКА ПОМИЛОК І СТАБІЛЬНІСТЬ
+  # ============================================================================
+
+  - id: engineering-anti-pattern-catch-all-any
+    message: |
+      Класичний антипатерн (Catch-All / Error Evasion):
+      Перехоплення помилки типом 'any' (catch (error: any)).
+      Це маскує тип помилки і заважає компілятору контролювати властивості.
+      У сучасному TypeScript використовуйте 'catch (error: unknown)'
+      з явною перевіркою 'if (error instanceof Error)'.
+    severity: WARNING
+    languages: [ts]
+    pattern: |
+      try {
+        ...
+      } catch ($E: any) {
+        ...
+      }
+    metadata:
+      category: engineering-antipattern
+      subcategory: error-handling
+      impact: MEDIUM
+
+  - id: engineering-anti-pattern-magic-timeout
+    message: |
+      Класичний антипатерн (Magic Numbers):
+      Використання магічного числа ($NUM мс) у таймауті/інтервалі.
+      Жорстко закодовані значення (86400000, 3600000 тощо) ускладнюють читання
+      та конфігурування. Винесіть константу з розрахунком
+      (наприклад, ONE_DAY_MS = 24 * 60 * 60 * 1000) або у файл конфігурації.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern-either:
+          - pattern: setTimeout($CB, $NUM)
+          - pattern: setInterval($CB, $NUM)
+      - metavariable-regex:
+          metavariable: $NUM
+          regex: "^[1-9][0-9]{4,}$"
+    metadata:
+      category: engineering-antipattern
+      subcategory: clean-code
+      impact: LOW
+
+  - id: engineering-anti-pattern-blind-trust-req-json
+    message: |
+      Класичний антипатерн (Blind Trust / No Boundary Defense):
+      Приведення зовнішніх даних '(await req.json()) as $TYPE' без схеми валідації.
+      Будь-який зовнішній клієнт може надіслати неповні або невалідні дані.
+      Застосовуйте Zod (UserSchema.parse(await req.json())) для гарантії контрактів.
+    severity: ERROR
+    languages: [ts]
+    pattern-either:
+      - pattern: (await $REQ.json()) as $TYPE
+      - pattern: (await $REQ.json()) as unknown as $TYPE
+      - pattern: $REQ.body as $TYPE
+    metadata:
+      category: engineering-antipattern
+      subcategory: security
+      impact: HIGH
+
+  # ============================================================================
+  # 3. СТАН, АСИНХРОННІСТЬ І ПАРАЛЕЛІЗМ
+  # ============================================================================
+
+  - id: engineering-anti-pattern-global-mutable-state
+    message: |
+      Класичний антипатерн (Global State Pollution):
+      Експорт мутабельної змінної 'export let $VAR'.
+      Спільний глобальний стан призводить до непередбачуваних гонок (Race Conditions),
+      робить модулі неізольованими і ламає паралельний запуск тестів.
+      Використовуйте інкапсуляцію в класи/функції або Dependency Injection.
+    severity: ERROR
+    languages: [ts, js]
+    pattern: export let $VAR = $VAL
+    metadata:
+      category: engineering-antipattern
+      subcategory: state-management
+      impact: HIGH
+
+  - id: engineering-anti-pattern-floating-fetch
+    message: |
+      Класичний антипатерн (Fire and Forget / Floating Promise):
+      Виклик fetch(...) як окремого виразу без await, return або обробки .catch().
+      У разі мережевого збою виникне unhandledRejection, а потік виконання продовжиться
+      без очікування результату.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern: fetch(...)
+      - pattern-not-inside: await fetch(...)
+      - pattern-not-inside: return fetch(...)
+      - pattern-not-inside: const $X = fetch(...)
+      - pattern-not-inside: let $X = fetch(...)
+      - pattern-not-inside: fetch(...).then(...)
+      - pattern-not-inside: fetch(...).catch(...)
+    metadata:
+      category: engineering-antipattern
+      subcategory: async
+      impact: HIGH
+
+  # ============================================================================
+  # 4. ЯКІСТЬ КОДУ ТА ЧИСТИЙ КОД (Clean Code)
+  # ============================================================================
+
+  - id: engineering-anti-pattern-boolean-trap
+    message: |
+      Класичний антипатерн (Boolean Trap):
+      Виклик функції з кількома послідовними булевими літералами (..., true, false, ...).
+      Під час читання виклику неможливо зрозуміти, за що відповідає кожен прапорець.
+      Використовуйте Options Object (наприклад, { verbose: true, dryRun: false }).
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: $FN(..., true, false, ...)
+      - pattern: $FN(..., false, true, ...)
+      - pattern: $FN(..., true, true, ...)
+      - pattern: $FN(..., false, false, ...)
+    metadata:
+      category: engineering-antipattern
+      subcategory: clean-code
+      impact: LOW
+
+  - id: engineering-anti-pattern-reinventing-clone
+    message: |
+      Класичний антипатерн (Reinventing the Wheel):
+      Використання 'JSON.parse(JSON.stringify($X))' для глибокого клонування об'єкта.
+      Цей метод повільний, втрачає типи Date, Map, Set, RegExp та викликає помилку
+      на циклічних посиланнях. Використовуйте нативний метод 'structuredClone($X)'.
+    severity: WARNING
+    languages: [ts, js]
+    pattern: JSON.parse(JSON.stringify($X))
+    metadata:
+      category: engineering-antipattern
+      subcategory: clean-code
+      impact: MEDIUM
+
+  # ============================================================================
+  # 5. ТЕСТУВАННЯ (Testing Smells)
+  # ============================================================================
+
+  - id: engineering-anti-pattern-slow-poke-test-sleep
+    message: |
+      Класичний антипатерн (Slow Poke Tests / Arbitrary Sleep):
+      Використання паузи sleep() або setTimeout() всередині тестів.
+      Штучні затримки уповільнюють виконання тестів на CI та роблять їх нестабільними (flaky).
+      Використовуйте підписку на події, polling очікування умов або мокінг системного таймера.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern-either:
+          - pattern: await sleep(...)
+          - pattern: sleep(...)
+          - pattern: await Bun.sleep(...)
+          - pattern: Bun.sleep(...)
+      - pattern-inside: |
+          test(..., ...)
+    metadata:
+      category: engineering-antipattern
+      subcategory: testing
+      impact: MEDIUM
+
+  - id: engineering-anti-pattern-mock-happy-tautology
+    message: |
+      Класичний антипатерн (Mock Happy / The Liar):
+      Тест одразу звіряє значення, яке сам щойно захардкодив у мок: expect($MOCK()).toBe($VAL).
+      Тестується лише працездатність самого мока, а не цільова поведінка бізнес-логіки.
+    severity: WARNING
+    languages: [ts, js]
+    pattern: |
+      $MOCK.mockReturnValue($VAL);
+      ...
+      expect($MOCK()).toBe($VAL);
+    metadata:
+      category: engineering-antipattern
+      subcategory: testing
+      impact: HIGH
+
+  # ============================================================================
+  # 6. БАЗА ДАНИХ ТА ЧИТАБЕЛЬНІСТЬ (Database & Readability)
+  # ============================================================================
+
+  - id: engineering-anti-pattern-double-negative-boolean
+    message: |
+      Класичний антипатерн (Double Negative Boolean):
+      Подвійне заперечення (!isNot... або !hasNo...).
+      Це створює зайве ментальне навантаження. Використовуйте позитивні назви (isEnabled, hasAccess).
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: "!$OBJ.isNot$NAME"
+      - pattern: "!$OBJ.hasNo$NAME"
+      - pattern: "!isNot$NAME"
+      - pattern: "!hasNo$NAME"
+    metadata:
+      category: engineering-antipattern
+      subcategory: readability
+      impact: LOW
+
+  - id: engineering-anti-pattern-select-star
+    message: |
+      Класичний антипатерн (SELECT * / Overhead Query):
+      Запит витягує всі стовпчики (SELECT *).
+      Це призводить до передачі надлишкових даних, блокує оптимізацію індексів (Covering Indexes)
+      та може призвести до витоку конфіденційних полів. Явно вказуйте необхідні колонки.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-regex: "(?i)\\bSELECT\\s+\\*\\s+FROM\\b"
+    metadata:
+      category: engineering-antipattern
+      subcategory: database
+      impact: MEDIUM
+
+  - id: engineering-anti-pattern-query-in-loop
+    message: |
+      Класичний антипатерн (N+1 Query / Query in Loop):
+      Виклик запиту до бази даних усередині циклу.
+      Це генерує сотні зайвих мережевих кругообігів. Використовуйте batch-запит з оператором IN(...)
+      або JOIN.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern-either:
+          - pattern: await $DB.select(...)
+          - pattern: await $DB.query(...)
+          - pattern: await $DB.execute(...)
+      - pattern-inside: |
+          for (...) {
+            ...
+          }
+    metadata:
+      category: engineering-antipattern
+      subcategory: database
+      impact: HIGH
+

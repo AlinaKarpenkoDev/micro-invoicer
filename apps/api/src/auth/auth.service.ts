@@ -35,15 +35,17 @@ export class AuthService {
         .insertInto('workspaces')
         .values({
           user_id: newUser.id,
-          name: 'Мій перший простір',
+          name: 'Personal Workspace',
         })
         .execute();
 
       return newUser;
-    } catch (error: any) {
+    } catch (error: unknown) {
       const pgError = error as { code?: string };
       if (pgError.code === '23505') {
-        throw new ConflictException('Користувач з таким email вже існує!');
+        throw new ConflictException(
+          'A user with this email address already exists!',
+        );
       }
       throw error;
     }
@@ -56,7 +58,7 @@ export class AuthService {
       .executeTakeFirst();
 
     if (!user) {
-      throw new UnauthorizedException('Невірний email або пароль');
+      throw new UnauthorizedException('Incorrect email address or password');
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -65,7 +67,7 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Невірний email або пароль');
+      throw new UnauthorizedException('Incorrect email address or password');
     }
 
     const payload = {
@@ -87,7 +89,7 @@ export class AuthService {
       .executeTakeFirst();
 
     if (!user) {
-      throw new NotFoundException('Сторінку не знайдено');
+      throw new NotFoundException('Page not found');
     }
 
     const payload = {

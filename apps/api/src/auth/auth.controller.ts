@@ -1,16 +1,11 @@
-import {
-  Body,
-  Controller,
-  Post,
-  UseGuards,
-  Get,
-  Request,
-} from '@nestjs/common';
+import { Body, Controller, Post, UseGuards, Get } from '@nestjs/common';
 import { RolesGuard } from './roles.guard';
 import { Roles } from './roles.decorator';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
 import { RegisterDto, LoginDto } from './auth.dto';
+import { AuthUser } from '../auth/user.decorator';
+import type { AuthUserPayload } from '../auth/user.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -27,19 +22,18 @@ export class AuthController {
 
   @UseGuards(AuthGuard)
   @Get('me')
-  getProfile(@Request() req: Request & { user: any }) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return req.user;
+  getProfile(@AuthUser() user: AuthUserPayload) {
+    return user;
   }
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Post('impersonate')
   async impersonate(
-    @Request() req: any,
+    @AuthUser() user: AuthUserPayload,
     @Body() body: { targetUserId: string },
   ) {
-    const adminId = req.user.sub;
+    const adminId = user.sub;
     return this.authService.impersonateUser(adminId, body.targetUserId);
   }
 }

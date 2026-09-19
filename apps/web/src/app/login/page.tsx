@@ -48,37 +48,47 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-white p-8 shadow-md"
+        className="w-full max-w-md space-y-6 rounded-2xl bg-white p-10 shadow-xl ring-1 ring-gray-900/5"
       >
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+        <h2 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-gray-900">
           Увійти
         </h2>
 
-        <input
-          {...register("email")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="email@gmail.com"
-        />
-        {errors.email && (
-          <p className="text-sm text-red-500">{errors.email.message}</p>
-        )}
+        <div className="space-y-4">
+          <div>
+            <input
+              {...register("email")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="email@gmail.com"
+            />
+            {errors.email && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.email.message}
+              </p>
+            )}
+          </div>
 
-        <input
-          {...register("password")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="password"
-          type="password"
-        />
-        {errors.password && (
-          <p className="text-sm text-red-500">{errors.password.message}</p>
-        )}
+          <div>
+            <input
+              {...register("password")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="password"
+              type="password"
+            />
+            {errors.password && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.password.message}
+              </p>
+            )}
+          </div>
+        </div>
 
         <button
           type="submit"
-          className="mt-2 w-full rounded-md bg-black p-2 font-medium text-white transition-colors hover:bg-gray-800 focus:outline-none"
+          className="flex w-full justify-center rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
         >
           Увійти
         </button>
@@ -86,7 +96,7 @@ export default function LoginPage() {
           Ще немає акаунту?{" "}
           <Link
             href="/register"
-            className="font-medium text-black hover:underline"
+            className="font-bold text-zinc-900 hover:underline"
           >
             Зареєструватися
           </Link>
