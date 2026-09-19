@@ -1,7 +1,6 @@
 import { Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
-  // 1. Створюємо таблицю Користувачів
   await db.schema
     .createTable('users')
     .addColumn('id', 'uuid', (col) =>
@@ -14,7 +13,6 @@ export async function up(db: Kysely<any>): Promise<void> {
     )
     .execute();
 
-  // 2. Створюємо таблицю Просторів (Workspaces)
   await db.schema
     .createTable('workspaces')
     .addColumn('id', 'uuid', (col) =>
@@ -30,10 +28,9 @@ export async function up(db: Kysely<any>): Promise<void> {
     )
     .execute();
 
-  // 3. Створюємо таблицю Сесій
   await db.schema
     .createTable('sessions')
-    .addColumn('id', 'varchar', (col) => col.primaryKey()) // ID сесії генеруємо ми самі
+    .addColumn('id', 'varchar', (col) => col.primaryKey())
     .addColumn('user_id', 'uuid', (col) =>
       col.references('users.id').onDelete('cascade').notNull(),
     )
@@ -43,7 +40,6 @@ export async function up(db: Kysely<any>): Promise<void> {
     )
     .execute();
 
-  // 4. Створюємо таблицю Інвойсів
   await db.schema
     .createTable('invoices')
     .addColumn('id', 'uuid', (col) =>
@@ -53,9 +49,9 @@ export async function up(db: Kysely<any>): Promise<void> {
       col.references('workspaces.id').onDelete('cascade').notNull(),
     )
     .addColumn('client_name', 'varchar', (col) => col.notNull())
-    .addColumn('amount', 'integer', (col) => col.notNull()) // Сума в копійках/центах
+    .addColumn('amount', 'integer', (col) => col.notNull())
     .addColumn('status', 'varchar', (col) => col.defaultTo('PENDING').notNull())
-    .addColumn('pdf_url', 'varchar') // Може бути порожнім (null)
+    .addColumn('pdf_url', 'varchar')
     .addColumn('created_at', 'timestamp', (col) =>
       col.defaultTo(sql`now()`).notNull(),
     )
@@ -63,7 +59,6 @@ export async function up(db: Kysely<any>): Promise<void> {
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
-  // Видаляємо у зворотному порядку, щоб не зламати зв'язки
   await db.schema.dropTable('invoices').execute();
   await db.schema.dropTable('sessions').execute();
   await db.schema.dropTable('workspaces').execute();

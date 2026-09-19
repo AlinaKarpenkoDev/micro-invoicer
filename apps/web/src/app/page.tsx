@@ -9,6 +9,7 @@ export default function Home() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [isAdminImpersonating, setIsAdminImpersonating] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -21,6 +22,10 @@ export default function Home() {
     } else {
       const payload = JSON.parse(atob(getToken.split(".")[1]));
       setRole(payload.role);
+
+      if (localStorage.getItem("admin_token")) {
+        setIsAdminImpersonating(true);
+      }
 
       async function fetchInvoices() {
         const response = await fetch("http://localhost:4000/invoices", {
@@ -85,22 +90,69 @@ export default function Home() {
     toast.success("Ви вийшли з аккаунту!");
   };
 
+  const handleLeaveImpersonation = () => {
+    const adminToken = localStorage.getItem("admin_token");
+    if (adminToken) {
+      localStorage.setItem("token", adminToken);
+      localStorage.removeItem("admin_token");
+      toast.success("Ви повернулися в адмінку!");
+      router.push("/admin");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-sans">
+      {isAdminImpersonating && (
+        <div className="mx-auto mb-8 max-w-4xl">
+          <div className="flex items-center justify-between rounded-xl bg-zinc-800 px-6 py-4 shadow-lg ring-1 ring-slate-800">
+            <div className="flex items-center gap-4">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-zinc-400 opacity-75"></span>
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-zinc-500"></span>
+              </span>
+              <span className="text-sm font-medium text-slate-200">
+                Режим перегляду:
+                <span className="font-bold text-white"> Адміністратор</span>
+              </span>
+            </div>
+            <button
+              onClick={handleLeaveImpersonation}
+              className="rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer border-none outline-none"
+            >
+              Повернутися
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Мої Інвойси</h1>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
+              Мої Інвойси
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Керування рахунками та оплатами
+            </p>
+          </div>
 
           <div className="flex items-center gap-3">
+            {role === "ADMIN" && (
+              <button
+                onClick={() => router.push("/admin")}
+                className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-gay-500 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer border-none outline-none"
+              >
+                Адмінка
+              </button>
+            )}
             <button
               onClick={() => router.push("/create")}
-              className="inline-flex items-center justify-center rounded-md bg-zinc-800  px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none"
+              className="inline-flex items-center justify-center rounded-md bg-zinc-800  px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none cursor-pointer"
             >
               + Створити
             </button>
             <button
               onClick={handleLogout}
-              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2 border-none outline-none"
+              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2 border-none outline-none cursor-pointer"
             >
               Вийти
             </button>
@@ -163,7 +215,7 @@ export default function Home() {
                         onClick={() => handleDownload(inv.id)}
                         disabled={downloadingId === inv.id}
                         title="Завантажити PDF"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 border-none outline-none"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 border-none outline-none cursor-pointer"
                       >
                         {downloadingId === inv.id ? (
                           <svg
@@ -216,7 +268,7 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => router.push("/pro")}
-                  className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
                 >
                   Upgrade to Pro
                 </button>
@@ -232,7 +284,7 @@ export default function Home() {
                 {role === "OWNER" && (
                   <button
                     onClick={() => router.push("/pro")}
-                    className="rounded-xl bg-zinc-700 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-zinc-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 border-none outline-none"
+                    className="rounded-xl bg-zinc-700 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-zinc-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 border-none outline-none cursor-pointer"
                   >
                     Upgrade to Pro
                   </button>

@@ -62,40 +62,59 @@ export default function CreateInvoice() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-white p-8 shadow-md"
+        className="w-full max-w-md space-y-6 rounded-2xl bg-white p-10 shadow-xl ring-1 ring-gray-900/5"
       >
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
-          Create Invoice
+        <h2 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-gray-900">
+          Створити інвойс
         </h2>
 
-        <input
-          {...register("clientName")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="Введіть імя англійською.."
-        />
-        {errors.clientName && (
-          <p className="text-sm text-red-500">{errors.clientName.message}</p>
-        )}
+        <div className="space-y-4">
+          <div>
+            <input
+              {...register("clientName")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="Ім'я клієнта (англійською)"
+            />
+            {errors.clientName && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.clientName.message}
+              </p>
+            )}
+          </div>
 
-        <input
-          type="number"
-          {...register("amount")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="amount.."
-        />
-        {errors.amount && (
-          <p className="text-sm text-red-500">{errors.amount.message}</p>
-        )}
+          <div>
+            <input
+              type="number"
+              {...register("amount")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="Сума ($)"
+            />
+            {errors.amount && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.amount.message}
+              </p>
+            )}
+          </div>
+        </div>
 
-        <button
-          type="submit"
-          className="mt-2 w-full rounded-md bg-black p-2 font-medium text-white transition-colors hover:bg-gray-800 focus:outline-none"
-        >
-          Зберегти
-        </button>
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="flex w-full justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+          >
+            Скасувати
+          </button>
+          <button
+            type="submit"
+            className="flex w-full justify-center rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
+          >
+            Зберегти
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -5,6 +5,8 @@ Directory structure:
     ├── turbo.json
     ├── .dockerignore
     ├── .env.example
+    ├── .semgrep-ai-rules.yml
+    ├── .semgrep-engineering-rules.yml
     ├── apps/
     │   ├── api/
     │   │   ├── README.md
@@ -28,7 +30,8 @@ Directory structure:
     │   │   │   │   ├── auth.module.ts
     │   │   │   │   ├── auth.service.ts
     │   │   │   │   ├── roles.decorator.ts
-    │   │   │   │   └── roles.guard.ts
+    │   │   │   │   ├── roles.guard.ts
+    │   │   │   │   └── user.decorator.ts
     │   │   │   ├── database/
     │   │   │   │   ├── database.module.ts
     │   │   │   │   ├── database.ts
@@ -37,6 +40,7 @@ Directory structure:
     │   │   │   │       ├── 001_initial_schema.ts
     │   │   │   │       └── 002_add_roles.ts
     │   │   │   └── invoices/
+    │   │   │       ├── impersonation.interceptor.ts
     │   │   │       ├── invoices.controller.spec.ts
     │   │   │       ├── invoices.controller.ts
     │   │   │       ├── invoices.dto.ts
@@ -63,6 +67,8 @@ Directory structure:
     │               ├── layout.tsx
     │               ├── page.tsx
     │               ├── providers.tsx
+    │               ├── admin/
+    │               │   └── page.tsx
     │               ├── create/
     │               │   └── page.tsx
     │               ├── login/
@@ -195,6 +201,468 @@ JWT_SECRET="super-secret-jwt-key"
 # Local Testing Scripts Key
 STAGE="local"
 SCRIPTS_API_KEY="test-local-key"
+
+
+================================================
+FILE: .semgrep-ai-rules.yml
+================================================
+# ==============================================================================
+# .semgrep-ai-rules.yml
+# Комплексний набір правил для виявлення антипатернів згенерованого AI коду
+#
+# Категорії:
+# 1. Архитектурні та структурні антипатерни (Premature Abstraction / Over-Engineering)
+# 2. Типізація та контрактні дефекти (Type Evasion / Partial-Everything)
+# 3. Надійність та обробка помилок (Exception Swallowing / Missing Error Returns)
+# 4. Асинхронність та ресурси (Unawaited Promises / Sync in Async / Leaks)
+# 5. Безпека та ізоляція (Injection Traps / Hardcoded Secrets / Permissive Defaults)
+# 6. Тестування та верифікація (Tautological Tests / Implementation Testing)
+# 7. Екосистемні та середовищні аномалії (Zombie Dependencies / Version Anachronism)
+# 8. Ментальні антипатерни розробника (Process Smells: Vibe Coding / Whack-a-Mole)
+# ==============================================================================
+
+rules:
+  # ============================================================================
+  # 1. АРХІТЕКТУРНІ ТА СТРУКТУРНІ АНТИПАТЕРНИ
+  # ============================================================================
+
+  - id: ai-anti-pattern-overengineering-naming-bloat
+    message: |
+      AI Anti-pattern (Premature Abstraction / Over-Engineering):
+      Роздута назва класу/фабрики ($CLASS).
+      AI схильний генерувати 4–5 шарів абстракцій (EventDispatcherServiceFactory,
+      StrategyManagerProvider тощо) для задач, що вирішуються чистою функцією на 10 рядків.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern: class $CLASS { ... }
+      - metavariable-regex:
+          metavariable: $CLASS
+          regex: ".*(DispatcherServiceFactory|ManagerProviderStrategy|ServiceFactoryStrategy|EventDispatcherFactory)$"
+    metadata:
+      category: ai-antipattern
+      subcategory: architecture
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-singleton-export
+    message: |
+      AI Anti-pattern (Frankenstein Architecture / Singleton Abuse):
+      Експорт створеного екземпляра класу як глобального сінглтона (export default new $CLASS()).
+      Це створює прихований спільний стан, ускладнює тестування і порушує модульність.
+      Використовуйте Dependency Injection або фабричні функції.
+    severity: WARNING
+    languages: [ts, js]
+    pattern: export default new $CLASS(...)
+    metadata:
+      category: ai-antipattern
+      subcategory: architecture
+      impact: MEDIUM
+
+  # ============================================================================
+  # 2. ТИПІЗАЦІЯ ТА КОНТРАКТНІ ДЕФЕКТИ
+  # ============================================================================
+
+  - id: ai-anti-pattern-type-evasion-any
+    message: |
+      AI Anti-pattern (Type Evasion / "any"-ification): Використання 'as any'.
+      Коли виникає конфлікт дженериків, AI обирає шлях найменшого опору, знищуючи
+      гарантії компілятора. Використовуйте дженерики або звуження типів (narrowing).
+    severity: ERROR
+    languages: [ts]
+    pattern: $X as any
+    metadata:
+      category: ai-antipattern
+      subcategory: type-safety
+      impact: HIGH
+
+  - id: ai-anti-pattern-type-evasion-unknown-cast
+    message: |
+      AI Anti-pattern (Type Evasion): Подвійне приведення '$X as unknown as $T'.
+      Класичний хак нейромереж для обходу несумісності типів TypeScript.
+      Застосовуйте рантайм-валідацію через Zod або перегляньте дизайн інтерфейсу.
+    severity: ERROR
+    languages: [ts]
+    pattern: $X as unknown as $T
+    metadata:
+      category: ai-antipattern
+      subcategory: type-safety
+      impact: HIGH
+
+  - id: ai-anti-pattern-non-null-assertion
+    message: |
+      AI Anti-pattern (Type Evasion): Оператор '!' (non-null assertion).
+      AI глушить перевірку null/undefined знаком '!', ризикуючи падінням у рантаймі.
+      Використовуйте 'if (x == null)' або optional chaining '?.'.
+    severity: WARNING
+    languages: [ts]
+    pattern-either:
+      - pattern: $X!.$PROP
+      - pattern: ($X)!.$PROP
+    metadata:
+      category: ai-antipattern
+      subcategory: type-safety
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-unvalidated-json-parse-cast
+    message: |
+      AI Anti-pattern (No Boundary Defense): 'JSON.parse(...) as $T'.
+      Сліпе припущення, що зовнішні дані завжди відповідають типу $T.
+      При зміні формату даних код впаде з Cannot read properties of undefined.
+      Обов'язково використовуйте Zod (schema.parse(JSON.parse(...))) або TypeBox.
+    severity: ERROR
+    languages: [ts]
+    pattern: JSON.parse(...) as $T
+    metadata:
+      category: ai-antipattern
+      subcategory: data-validation
+      impact: HIGH
+
+  # ============================================================================
+  # 3. НАДІЙНІСТЬ ТА ОБРОБКА ПОМИЛОК
+  # ============================================================================
+
+  - id: ai-anti-pattern-empty-catch
+    message: |
+      AI Anti-pattern (Exception Swallowing): Порожній блок 'catch'.
+      AI часто ховає помилки, щоб код 'не падав', залишаючи застосунок у невалідному зомбі-стані.
+      Обробіть виняток або прокиньте його далі (throw).
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: |
+          try {
+            ...
+          } catch ($E) {
+          }
+      - pattern: |
+          try {
+            ...
+          } catch {
+          }
+    metadata:
+      category: ai-antipattern
+      subcategory: error-handling
+      impact: CRITICAL
+
+  - id: ai-anti-pattern-catch-only-console
+    message: |
+      AI Anti-pattern (Exception Swallowing): Блок 'catch' містить лише console.log/error.
+      Помилка ігнорується, і функція несподівано повертає undefined, що призводить
+      до ланцюгового падіння кількома кроками пізніше.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: |
+          try {
+            ...
+          } catch ($E) {
+            console.$LOG($...ARGS);
+          }
+      - pattern: |
+          try {
+            ...
+          } catch {
+            console.$LOG($...ARGS);
+          }
+    metadata:
+      category: ai-antipattern
+      subcategory: error-handling
+      impact: HIGH
+
+  - id: ai-anti-pattern-swallowed-promise-catch
+    message: |
+      AI Anti-pattern (Exception Swallowing): Порожній або лише логуючий .catch() у промісі.
+      Приховує збій асинхронної операції. Додайте повноцінну обробку помилки або прокидання.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: $P.catch(() => {})
+      - pattern: $P.catch(($E) => {})
+      - pattern: $P.catch(($E) => { console.$LOG(...); })
+    metadata:
+      category: ai-antipattern
+      subcategory: error-handling
+      impact: HIGH
+
+  # ============================================================================
+  # 4. АСИНХРОННІСТЬ ТА РЕСУРСИ
+  # ============================================================================
+
+  - id: ai-anti-pattern-async-foreach
+    message: |
+      AI Anti-pattern (Async Trap / Unawaited Promises): 'forEach(async (...) => { ... })'.
+      Метод 'forEach' не чекає на завершення промісів. Операції виконуються неконтрольовано,
+      а помилки губляться. Використовуйте 'for (const item of items)' або 'await Promise.all(items.map(...))'.
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: $ARR.forEach(async ($ITEM) => { ... })
+      - pattern: $ARR.forEach(async function ($ITEM) { ... })
+      - pattern: $ARR.forEach(async ($ITEM, $IDX) => { ... })
+      - pattern: $ARR.forEach(async () => { ... })
+    metadata:
+      category: ai-antipattern
+      subcategory: async-control-flow
+      impact: HIGH
+
+  - id: ai-anti-pattern-unawaited-async-map
+    message: |
+      AI Anti-pattern (Async Trap): Виклик '$ARR.map(async ...)' як окремий оператор без очікування.
+      Масив промісів створюється, але ніколи не очікується через await Promise.all().
+    severity: ERROR
+    languages: [ts, js]
+    patterns:
+      - pattern: $ARR.map(async ($ITEM) => { ... });
+      - pattern-regex: '\.map\s*\(\s*async\b'
+    metadata:
+      category: ai-antipattern
+      subcategory: async-control-flow
+      impact: HIGH
+
+  - id: ai-anti-pattern-blocking-sync-io
+    message: |
+      AI Anti-pattern (Blocking I/O in Async / Sync in Async):
+      Використання синхронних викликів fs.*Sync або execSync блокує Event Loop.
+      У Bun використовуйте 'Bun.file(...).text()', 'Bun.write(...)', або 'node:fs/promises'.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: fs.readFileSync(...)
+      - pattern: fs.writeFileSync(...)
+      - pattern: readFileSync(...)
+      - pattern: writeFileSync(...)
+      - pattern: child_process.execSync(...)
+      - pattern: execSync(...)
+    metadata:
+      category: ai-antipattern
+      subcategory: performance
+      impact: HIGH
+
+  # ============================================================================
+  # 5. БЕЗПЕКА ТА ІЗОЛЯЦІЯ
+  # ============================================================================
+
+  - id: ai-anti-pattern-command-injection-template
+    message: |
+      AI Anti-pattern (Injection Trap): Інтерполяція рядків у системній команді exec(`...${...}...`).
+      AI часто конкатенує змінні в системні команди, створюючи критичну вразливість Command Injection.
+      Використовуйте Bun.spawn(["command", arg1, arg2]) з масивом аргументів без виклику шелу.
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: exec(`...${$VAR}...`)
+      - pattern: execSync(`...${$VAR}...`)
+      - pattern: child_process.exec(`...${$VAR}...`)
+      - pattern: child_process.execSync(`...${$VAR}...`)
+    metadata:
+      category: ai-antipattern
+      subcategory: security
+      impact: CRITICAL
+
+  - id: ai-anti-pattern-permissive-cors
+    message: |
+      AI Anti-pattern (Permissive Defaults): Встановлення надмірно відкритих прав CORS (origin: '*').
+      AI часто робить це, щоб подолати локальні помилки CORS, відкриваючи доступ до API будь-якому сайту.
+      Вкажіть точний домен або білий список дозволених джерел.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: "cors({ origin: '*' })"
+      - pattern: "cors({ origin: true })"
+      - pattern: '$RES.setHeader("Access-Control-Allow-Origin", "*")'
+    metadata:
+      category: ai-antipattern
+      subcategory: security
+      impact: HIGH
+
+  - id: ai-anti-pattern-permissive-tls
+    message: |
+      AI Anti-pattern (Permissive Defaults): Відключення TLS-верифікації (rejectUnauthorized: false).
+      Небезпечний хак для усунення проблем із самопідписаними сертифікатами, що відкриває шлях до MITM-атак.
+    severity: ERROR
+    languages: [ts, js]
+    pattern: "rejectUnauthorized: false"
+    metadata:
+      category: ai-antipattern
+      subcategory: security
+      impact: CRITICAL
+
+  - id: ai-anti-pattern-permissive-chmod
+    message: |
+      AI Anti-pattern (Permissive Defaults): Встановлення прав 777 (chmod 0o777).
+      AI надає повний доступ усім користувачам системи замість мінімально необхідних прав (0o755 або 0o644).
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: fs.chmodSync($PATH, 0o777)
+      - pattern: fs.chmod($PATH, 0o777, ...)
+      - pattern: chmodSync($PATH, 0o777)
+      - pattern: chmod($PATH, 0o777, ...)
+    metadata:
+      category: ai-antipattern
+      subcategory: security
+      impact: HIGH
+
+  # ============================================================================
+  # 6. ТЕСТУВАННЯ ТА ВЕРИФІКАЦІЯ
+  # ============================================================================
+
+  - id: ai-anti-pattern-tautological-assertion
+    message: |
+      AI Anti-pattern (Tautological Tests): Тест перевіряє значення саме з собою або тривіальну тавтологію.
+      Згенеровані тести часто 'зелені' лише тому, що нічого реального не перевіряють (expect(x).toBe(x)).
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: expect($X).toBe($X)
+      - pattern: expect($X).toEqual($X)
+      - pattern: expect(true).toBe(true)
+      - pattern: expect(false).toBe(false)
+      - pattern: assert.equal($X, $X)
+      - pattern: assert.deepEqual($X, $X)
+      - pattern: assert.strictEqual($X, $X)
+    metadata:
+      category: ai-antipattern
+      subcategory: testing
+      impact: HIGH
+
+  - id: ai-anti-pattern-empty-test
+    message: |
+      AI Anti-pattern (Tautological / Dummy Tests): Порожнє тіло тесту без асертів.
+      Тест завжди успішний, створюючи фіктивне покриття.
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: test($NAME, () => {})
+      - pattern: it($NAME, () => {})
+      - pattern: test($NAME, async () => {})
+      - pattern: it($NAME, async () => {})
+    metadata:
+      category: ai-antipattern
+      subcategory: testing
+      impact: HIGH
+
+  # ============================================================================
+  # 7. ЕКОСИСТЕМНІ ТА СЕРЕДОВИЩНІ АНОМАЛІЇ (Zombie Dependencies & Anachronisms)
+  # ============================================================================
+
+  - id: ai-anti-pattern-zombie-lodash
+    message: |
+      AI Anti-pattern (Zombie Dependencies): Імпорт бібліотеки 'lodash'.
+      У сучасному JavaScript більшість методів lodash замінені нативними еквівалентами:
+      structuredClone(), Object.keys(), Array.prototype.flat() тощо.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import $X from 'lodash'
+      - pattern: import $X from 'lodash-es'
+      - pattern: require('lodash')
+    metadata:
+      category: ai-antipattern
+      subcategory: zombie-dependencies
+      impact: LOW
+
+  - id: ai-anti-pattern-zombie-moment
+    message: |
+      AI Anti-pattern (Zombie Dependencies): Імпорт застарілої бібліотеки 'moment'.
+      Moment.js офіційно перебуває в режимі підтримки і не рекомендований для нових проєктів.
+      Використовуйте нативний об'єкт Intl, Date або легкі альтернативи (date-fns).
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import $X from 'moment'
+      - pattern: require('moment')
+    metadata:
+      category: ai-antipattern
+      subcategory: zombie-dependencies
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-zombie-uuid
+    message: |
+      AI Anti-pattern (Zombie Dependencies): Імпорт стороннього пакету 'uuid'.
+      У сучасному середовищі (Bun, Node.js 18+, браузери) є вбудований нативний метод:
+      'crypto.randomUUID()'. Зайва залежність не потрібна.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import $X from 'uuid'
+      - pattern: require('uuid')
+    metadata:
+      category: ai-antipattern
+      subcategory: zombie-dependencies
+      impact: LOW
+
+  - id: ai-anti-pattern-bun-legacy-fetch-libraries
+    message: |
+      AI Anti-pattern (Legacy Hallucinations): Імпорт '$LIB' у Bun проєкті.
+      Bun має нативний супершвидкий глобальний fetch().
+      Бібліотеки axios/node-fetch є зайвими та знижують швидкість.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import $X from 'axios'
+      - pattern: import $X from 'node-fetch'
+      - pattern: import $X from 'cross-fetch'
+      - pattern: import $X from 'request'
+      - pattern: import $X from 'got'
+      - pattern: require('axios')
+      - pattern: require('node-fetch')
+      - pattern: require('cross-fetch')
+    metadata:
+      category: ai-antipattern
+      subcategory: runtime-modernity
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-bun-legacy-dotenv
+    message: |
+      AI Anti-pattern (Legacy Hallucinations): Імпорт 'dotenv' у Bun проєкті.
+      Середовище Bun за замовчуванням автоматично читає змінні з '.env'.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import 'dotenv'
+      - pattern: import 'dotenv/config'
+      - pattern: import $X from 'dotenv'
+      - pattern: require('dotenv')
+      - pattern: require('dotenv').config(...)
+    metadata:
+      category: ai-antipattern
+      subcategory: runtime-modernity
+      impact: LOW
+
+  - id: ai-anti-pattern-version-anachronism-var
+    message: |
+      AI Anti-pattern (Version Anachronism): Використання ключового слова 'var'.
+      AI, натренований на коді десятирічної давності, іноді генерує 'var' замість 'const' або 'let'.
+    severity: ERROR
+    languages: [ts, js]
+    patterns:
+      - pattern: var $X = $VAL
+      - pattern-regex: '\bvar\s+[a-zA-Z_$]'
+    metadata:
+      category: ai-antipattern
+      subcategory: runtime-modernity
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-llm-stub-comment
+    message: |
+      AI Anti-pattern (Hallucination Leftovers): Знайдено коментар-заглушку від LLM:
+      '// ... rest of code ...', '// existing code remains unchanged' тощо.
+      Код не завершено або скопійовано фрагментарно.
+    severity: ERROR
+    languages: [ts, js]
+    pattern-regex: (?i)//\s*(?:\.\.\.\s*(?:rest of|existing)|rest of (?:your )?code|existing code remains|insert (?:code|implementation) here|add implementation here)
+    metadata:
+      category: ai-antipattern
+      subcategory: hygiene
+      impact: HIGH
+
+
+
+================================================
+FILE: .semgrep-engineering-rules.yml
+================================================
+[Binary file]
 
 
 ================================================
@@ -424,6 +892,8 @@ FILE: apps/api/package.json
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^12.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "dotenv": "^17.4.2",
     "kysely": "^0.29.5",
     "pdfkit": "^0.20.2",
@@ -619,11 +1089,13 @@ export class AppService {
 FILE: apps/api/src/main.ts
 ================================================
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();
+  app.useGlobalPipes(new ValidationPipe());
   await app.listen(process.env.PORT ?? 4000);
 }
 bootstrap();
@@ -633,17 +1105,14 @@ bootstrap();
 ================================================
 FILE: apps/api/src/auth/auth.controller.ts
 ================================================
-import {
-  Body,
-  Controller,
-  Post,
-  UseGuards,
-  Get,
-  Request,
-} from '@nestjs/common';
+import { Body, Controller, Post, UseGuards, Get } from '@nestjs/common';
+import { RolesGuard } from './roles.guard';
+import { Roles } from './roles.decorator';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
 import { RegisterDto, LoginDto } from './auth.dto';
+import { AuthUser } from '../auth/user.decorator';
+import type { AuthUserPayload } from '../auth/user.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -660,9 +1129,19 @@ export class AuthController {
 
   @UseGuards(AuthGuard)
   @Get('me')
-  getProfile(@Request() req: Request & { user: any }) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return req.user;
+  getProfile(@AuthUser() user: AuthUserPayload) {
+    return user;
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('impersonate')
+  async impersonate(
+    @AuthUser() user: AuthUserPayload,
+    @Body() body: { targetUserId: string },
+  ) {
+    const adminId = user.sub;
+    return this.authService.impersonateUser(adminId, body.targetUserId);
   }
 }
 
@@ -685,7 +1164,47 @@ export class LoginDto {
 ================================================
 FILE: apps/api/src/auth/auth.guard.ts
 ================================================
-[Binary file]
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { Request } from 'express';
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(private jwtService: JwtService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
+
+    const token = this.extractTokenFromHeader(request);
+
+    if (!token) {
+      throw new UnauthorizedException('No access (token missing)');
+    }
+
+    try {
+      const payload = await this.jwtService.verifyAsync<{
+        sub: string;
+        email: string;
+      }>(token);
+      request['user'] = payload;
+    } catch {
+      throw new UnauthorizedException('The token is invalid');
+    }
+
+    return true;
+  }
+
+  private extractTokenFromHeader(request: Request): string | undefined {
+    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    return type === 'Bearer' ? token : undefined;
+  }
+}
+
 
 
 ================================================
@@ -719,6 +1238,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Kysely } from 'kysely';
@@ -750,15 +1270,17 @@ export class AuthService {
         .insertInto('workspaces')
         .values({
           user_id: newUser.id,
-          name: 'Мій перший простір',
+          name: 'My first space',
         })
         .execute();
 
       return newUser;
-    } catch (error: any) {
+    } catch (error: unknown) {
       const pgError = error as { code?: string };
       if (pgError.code === '23505') {
-        throw new ConflictException('Користувач з таким email вже існує!');
+        throw new ConflictException(
+          'A user with this email address already exists!',
+        );
       }
       throw error;
     }
@@ -771,7 +1293,7 @@ export class AuthService {
       .executeTakeFirst();
 
     if (!user) {
-      throw new UnauthorizedException('Невірний email або пароль');
+      throw new UnauthorizedException('Incorrect email address or password');
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -780,13 +1302,36 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Невірний email або пароль');
+      throw new UnauthorizedException('Incorrect email address or password');
     }
 
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
+  }
+
+  async impersonateUser(adminId: string, targetUserId: string) {
+    const user = await this.db
+      .selectFrom('users')
+      .select(['id', 'email', 'role'])
+      .where('id', '=', targetUserId)
+      .executeTakeFirst();
+
+    if (!user) {
+      throw new NotFoundException('Page not found');
+    }
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      is_impersonating: true,
     };
 
     return {
@@ -809,7 +1354,52 @@ export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
 ================================================
 FILE: apps/api/src/auth/roles.guard.ts
 ================================================
-[Binary file]
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.get<string[]>(
+      'roles',
+      context.getHandler(),
+    );
+
+    if (!requiredRoles) {
+      return true;
+    }
+
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    return requiredRoles.includes(user.role);
+  }
+}
+
+
+
+================================================
+FILE: apps/api/src/auth/user.decorator.ts
+================================================
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+
+export interface AuthUserPayload {
+  sub: string;
+  email: string;
+  role: string;
+  is_impersonating?: boolean;
+}
+
+export const AuthUser = createParamDecorator(
+  (data: unknown, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+
+    return request.user as AuthUserPayload;
+  },
+);
+
 
 
 ================================================
@@ -820,17 +1410,15 @@ import { Kysely, PostgresDialect } from 'kysely';
 import * as pg from 'pg';
 import { Database } from './database';
 
-// @Global() означає, що підключення до бази буде доступне всюди в проєкті
 @Global()
 @Module({
   providers: [
     {
-      provide: 'DB_INSTANCE', // За цим ключем ми будемо викликати базу
+      provide: 'DB_INSTANCE',
       useFactory: () => {
         return new Kysely<Database>({
           dialect: new PostgresDialect({
             pool: new pg.Pool({
-              // Беремо посилання на базу з нашого .env файлу
               connectionString: process.env.DATABASE_URL,
             }),
           }),
@@ -847,7 +1435,48 @@ export class DatabaseModule {}
 ================================================
 FILE: apps/api/src/database/database.ts
 ================================================
-[Binary file]
+import { ColumnType, Generated } from 'kysely';
+
+export interface UsersTable {
+  id: Generated<string>;
+  email: string;
+  password_hash: string;
+  role: 'OWNER' | 'ASSISTANT' | 'ADMIN';
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface WorkspacesTable {
+  id: Generated<string>;
+  user_id: string;
+  name: string;
+  is_pro: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface SessionsTable {
+  id: string;
+  user_id: string;
+  user_agent: string;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface InvoicesTable {
+  id: Generated<string>;
+  workspace_id: string;
+  client_name: string;
+  amount: number;
+  status: 'PENDING' | 'PAID';
+  pdf_url: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface Database {
+  users: UsersTable;
+  workspaces: WorkspacesTable;
+  sessions: SessionsTable;
+  invoices: InvoicesTable;
+}
+
 
 
 ================================================
@@ -872,11 +1501,9 @@ async function runMigrations() {
     }),
   });
 
-  // Передаємо міграцію як об'єкт, без пошуку по папках
   const migrator = new Migrator({
     db,
     provider: {
-      // eslint-disable-next-line @typescript-eslint/require-await
       async getMigrations() {
         return {
           '001_initial_schema': initialSchema,
@@ -886,17 +1513,20 @@ async function runMigrations() {
     },
   });
 
-  console.log('⏳ Запуск міграцій...');
   const { error, results } = await migrator.migrateToLatest();
 
-  results?.forEach((it) => {
-    if (it.status === 'Success')
-      console.log(`✅ Міграція ${it.migrationName} успішна!`);
-    else console.error(`❌ Помилка міграції ${it.migrationName}`);
-  });
+  if (results) {
+    for (const it of results) {
+      if (it.status === 'Success') {
+        console.log(`✅ Migration ${it.migrationName} успішна!`);
+      } else {
+        console.error(`❌ Migration error ${it.migrationName}`);
+      }
+    }
+  }
 
   if (error) {
-    console.error('Критична помилка:', error);
+    console.error('Critical error:', error);
     process.exit(1);
   }
 
@@ -913,7 +1543,6 @@ FILE: apps/api/src/database/migrations/001_initial_schema.ts
 import { Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
-  // 1. Створюємо таблицю Користувачів
   await db.schema
     .createTable('users')
     .addColumn('id', 'uuid', (col) =>
@@ -926,7 +1555,6 @@ export async function up(db: Kysely<any>): Promise<void> {
     )
     .execute();
 
-  // 2. Створюємо таблицю Просторів (Workspaces)
   await db.schema
     .createTable('workspaces')
     .addColumn('id', 'uuid', (col) =>
@@ -942,10 +1570,9 @@ export async function up(db: Kysely<any>): Promise<void> {
     )
     .execute();
 
-  // 3. Створюємо таблицю Сесій
   await db.schema
     .createTable('sessions')
-    .addColumn('id', 'varchar', (col) => col.primaryKey()) // ID сесії генеруємо ми самі
+    .addColumn('id', 'varchar', (col) => col.primaryKey())
     .addColumn('user_id', 'uuid', (col) =>
       col.references('users.id').onDelete('cascade').notNull(),
     )
@@ -955,7 +1582,6 @@ export async function up(db: Kysely<any>): Promise<void> {
     )
     .execute();
 
-  // 4. Створюємо таблицю Інвойсів
   await db.schema
     .createTable('invoices')
     .addColumn('id', 'uuid', (col) =>
@@ -965,9 +1591,9 @@ export async function up(db: Kysely<any>): Promise<void> {
       col.references('workspaces.id').onDelete('cascade').notNull(),
     )
     .addColumn('client_name', 'varchar', (col) => col.notNull())
-    .addColumn('amount', 'integer', (col) => col.notNull()) // Сума в копійках/центах
+    .addColumn('amount', 'integer', (col) => col.notNull())
     .addColumn('status', 'varchar', (col) => col.defaultTo('PENDING').notNull())
-    .addColumn('pdf_url', 'varchar') // Може бути порожнім (null)
+    .addColumn('pdf_url', 'varchar')
     .addColumn('created_at', 'timestamp', (col) =>
       col.defaultTo(sql`now()`).notNull(),
     )
@@ -975,7 +1601,6 @@ export async function up(db: Kysely<any>): Promise<void> {
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
-  // Видаляємо у зворотному порядку, щоб не зламати зв'язки
   await db.schema.dropTable('invoices').execute();
   await db.schema.dropTable('sessions').execute();
   await db.schema.dropTable('workspaces').execute();
@@ -998,6 +1623,53 @@ export async function up(db: Kysely<any>): Promise<void> {
 
 export async function down(db: Kysely<any>): Promise<void> {
   await db.schema.alterTable('users').dropColumn('role').execute();
+}
+
+
+
+================================================
+FILE: apps/api/src/invoices/impersonation.interceptor.ts
+================================================
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { AuthUserPayload } from '../auth/user.decorator';
+
+@Injectable()
+export class ImpersonationInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest();
+    const user = request.user as AuthUserPayload;
+
+    return next.handle().pipe(
+      map((response) => {
+        if (!user.is_impersonating) {
+          return response;
+        }
+
+        const maskedData = response.data.map(
+          (inv: {
+            client_name: string;
+            amount: number;
+            [key: string]: unknown;
+          }) => {
+            return {
+              ...inv,
+              client_name: '***',
+              amount: 0,
+            };
+          },
+        );
+
+        return { ...response, data: maskedData };
+      }),
+    );
+  }
 }
 
 
@@ -1033,17 +1705,20 @@ import {
   Body,
   Controller,
   Post,
-  Request,
   UseGuards,
   Get,
   Param,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { InvoicesService } from './invoices.service';
+import { ImpersonationInterceptor } from './impersonation.interceptor';
 import { CreateInvoiceDto } from './invoices.dto';
 import { PdfService } from './pdf.service';
+import { AuthUser } from '../auth/user.decorator';
+import type { AuthUserPayload } from '../auth/user.decorator';
 
 @Controller('invoices')
 export class InvoicesController {
@@ -1054,10 +1729,11 @@ export class InvoicesController {
 
   @UseGuards(AuthGuard)
   @Post()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async create(@Request() req: any, @Body() body: CreateInvoiceDto) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const userId = req.user.sub as string;
+  async create(
+    @AuthUser() user: AuthUserPayload,
+    @Body() body: CreateInvoiceDto,
+  ) {
+    const userId = user.sub;
 
     return this.invoicesService.createInvoice(
       userId,
@@ -1067,17 +1743,20 @@ export class InvoicesController {
   }
 
   @UseGuards(AuthGuard)
+  @UseInterceptors(ImpersonationInterceptor)
   @Get()
-  async getAll(@Request() req: any) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const userId = req.user.sub as string;
+  async getAll(@AuthUser() user: AuthUserPayload) {
+    const userId = user.sub;
     return this.invoicesService.getInvoices(userId);
   }
 
   @UseGuards(AuthGuard)
   @Get(':id/pdf')
-  async downloadPdf(@Request() req: any, @Param('id') id: string) {
-    const userId = req.user.sub as string;
+  async downloadPdf(
+    @AuthUser() user: AuthUserPayload,
+    @Param('id') id: string,
+  ) {
+    const userId = user.sub;
     const invoice = await this.invoicesService.getInvoiceById(userId, id);
 
     if (invoice.pdf_url) {
@@ -1098,8 +1777,8 @@ export class InvoicesController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles('OWNER')
   @Post('upgrade')
-  async upgradeToPro(@Request() req: any) {
-    const userId = req.user.sub as string;
+  async upgradeToPro(@AuthUser() user: AuthUserPayload) {
+    const userId = user.sub;
     return this.invoicesService.upgradeWorkspace(userId);
   }
 
@@ -1116,8 +1795,14 @@ export class InvoicesController {
 ================================================
 FILE: apps/api/src/invoices/invoices.dto.ts
 ================================================
+import { IsString, IsNotEmpty, IsNumber, Min } from 'class-validator';
+
 export class CreateInvoiceDto {
+  @IsString()
+  @IsNotEmpty()
   client_name!: string;
+  @IsNumber()
+  @Min(1)
   amount!: number;
 }
 
@@ -1187,7 +1872,7 @@ export class InvoicesService {
       .executeTakeFirst();
 
     if (!workspace) {
-      throw new NotFoundException('Простір не знайдено');
+      throw new NotFoundException('Workspace not found');
     }
 
     if (!workspace.is_pro) {
@@ -1200,7 +1885,9 @@ export class InvoicesService {
       const currentInvoicesCount = Number(count);
 
       if (currentInvoicesCount >= 3) {
-        throw new ForbiddenException('Ліміт безкоштовних інвойсів вичерпано');
+        throw new ForbiddenException(
+          'The limit on free invoices has been reached',
+        );
       }
     }
     const newInvoice = await this.db
@@ -1248,7 +1935,7 @@ export class InvoicesService {
       .executeTakeFirst();
 
     if (!workspace) {
-      throw new NotFoundException('Простір не знайдено');
+      throw new NotFoundException('Workspace not found');
     }
 
     const invoices = await this.db
@@ -1259,7 +1946,7 @@ export class InvoicesService {
       .executeTakeFirst();
 
     if (!invoices) {
-      throw new NotFoundException('Інвойс не знайдено');
+      throw new NotFoundException('Invoice not found');
     }
     return { ...invoices, is_pro: workspace.is_pro };
   }
@@ -1271,7 +1958,7 @@ export class InvoicesService {
       .where('user_id', '=', userId)
       .execute();
 
-    return { success: true, message: 'Оновлено до Pro!' };
+    return { success: true, message: 'Updated to Pro!' };
   }
 
   async savePdfUrl(invoiceId: string, pdfUrl: string) {
@@ -1283,7 +1970,6 @@ export class InvoicesService {
   }
 
   async getAllWorkspacesForAdmin() {
-    // Дістаємо всі простори разом з імейлами їх власників
     const workspaces = await this.db
       .selectFrom('workspaces')
       .innerJoin('users', 'users.id', 'workspaces.user_id')
@@ -1733,6 +2419,7 @@ export default function Home() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [isAdminImpersonating, setIsAdminImpersonating] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -1745,6 +2432,10 @@ export default function Home() {
     } else {
       const payload = JSON.parse(atob(getToken.split(".")[1]));
       setRole(payload.role);
+
+      if (localStorage.getItem("admin_token")) {
+        setIsAdminImpersonating(true);
+      }
 
       async function fetchInvoices() {
         const response = await fetch("http://localhost:4000/invoices", {
@@ -1809,8 +2500,42 @@ export default function Home() {
     toast.success("Ви вийшли з аккаунту!");
   };
 
+  const handleLeaveImpersonation = () => {
+    const adminToken = localStorage.getItem("admin_token");
+    if (adminToken) {
+      localStorage.setItem("token", adminToken);
+      localStorage.removeItem("admin_token");
+      toast.success("Ви повернулися в адмінку!");
+      router.push("/admin");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-sans">
+      {role === "ADMIN" && (
+        <button
+          onClick={() => router.push("/admin")}
+          className="rounded-xl bg-zinc-700 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-zinc-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 border-none outline-none"
+        >
+          Admin Panel
+        </button>
+      )}
+      {isAdminImpersonating && (
+        <div className="mb-6 flex items-center justify-between rounded-lg bg-red-100 p-4 shadow-sm border border-red-200">
+          <div className="flex items-center gap-3">
+            <span className="flex h-3 w-3 animate-pulse rounded-full bg-red-600"></span>
+            <span className="text-sm font-bold text-red-900">
+              Ви перебуваєте в режимі перегляду від імені іншого користувача
+            </span>
+          </div>
+          <button
+            onClick={handleLeaveImpersonation}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700 border-none outline-none"
+          >
+            Повернутися до панелі Адміністратора
+          </button>
+        </div>
+      )}
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Мої Інвойси</h1>
@@ -1998,6 +2723,172 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 
 ================================================
+FILE: apps/web/src/app/admin/page.tsx
+================================================
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+
+interface Workspace {
+  workspace_id: string;
+  workspace_name: string;
+  owner_email: string;
+  is_pro: boolean;
+  owner_id: string;
+}
+
+export default function AdminPage() {
+  const [role, setRole] = useState<string | null>(null);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    const getToken = localStorage.getItem("token");
+    try {
+      if (!getToken) {
+        toast.error("Сесія застаріла, введіть логін повторно");
+        router.push("/login");
+        return;
+      } else {
+        const payload = JSON.parse(atob(getToken.split(".")[1]));
+        setRole(payload.role);
+
+        async function fetchWorkspaces() {
+          const response = await fetch(
+            "http://localhost:4000/invoices/admin/workspaces",
+            {
+              method: "GET",
+              headers: { Authorization: `Bearer ${getToken}` },
+            },
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            setWorkspaces(data);
+            console.log(data);
+          } else {
+            toast.error("Сесія застаріла, введіть логін повторно");
+            localStorage.removeItem("token");
+            router.push("/login");
+          }
+        }
+
+        if (!payload.role || payload.role !== "ADMIN") {
+          toast.error("Доступ заборонено");
+          router.push("/");
+        } else if (payload.role === "ADMIN") {
+          fetchWorkspaces();
+        }
+      }
+    } catch {
+      toast.error("Недійсний токен або помилка авторизації");
+      localStorage.removeItem("token");
+      router.push("/login");
+    }
+  }, [router]);
+
+  async function handleImpersonate(targetUserId: string) {
+    const getToken = localStorage.getItem("token");
+    try {
+      const response = await fetch("http://localhost:4000/auth/impersonate", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ targetUserId: targetUserId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem("admin_token", getToken);
+        localStorage.setItem("token", data.access_token);
+        toast.success("Сесію змінено!");
+        router.push("/");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message);
+      }
+    } catch {
+      toast.error("Помилка з'єднання з сервером");
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-8 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Панель Адміністратора
+          </h2>
+          <button
+            onClick={() => router.push("/")}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            Повернутися на сайт
+          </button>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50/50">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Власник
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Простір
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Тариф
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Дії
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {workspaces.map((ws) => (
+                <tr
+                  key={ws.workspace_id}
+                  className="group transition-colors hover:bg-gray-50"
+                >
+                  <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                    {ws.owner_email}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                    {ws.workspace_name}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ws.is_pro ? "bg-purple-100 text-purple-800" : "bg-gray-100 text-gray-800"}`}
+                    >
+                      {ws.is_pro ? "Pro" : "Free"}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
+                    <button
+                      onClick={() => handleImpersonate(ws.owner_id)}
+                      className="inline-flex items-center justify-center rounded-md bg-black px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-gray-800 focus:outline-none"
+                    >
+                      Увійти як
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+================================================
 FILE: apps/web/src/app/create/page.tsx
 ================================================
 "use client";
@@ -2149,8 +3040,8 @@ export default function LoginPage() {
       } else {
         const responseData = await response.json();
         localStorage.setItem("token", responseData.access_token);
-        router.push("/");
         toast.success("Вхід виконано!");
+        router.push("/");
       }
     } catch {
       toast.error("Помилка з'єднання з сервером");

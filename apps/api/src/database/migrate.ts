@@ -17,11 +17,9 @@ async function runMigrations() {
     }),
   });
 
-  // Передаємо міграцію як об'єкт, без пошуку по папках
   const migrator = new Migrator({
     db,
     provider: {
-      // eslint-disable-next-line @typescript-eslint/require-await
       async getMigrations() {
         return {
           '001_initial_schema': initialSchema,
@@ -31,17 +29,20 @@ async function runMigrations() {
     },
   });
 
-  console.log('⏳ Запуск міграцій...');
   const { error, results } = await migrator.migrateToLatest();
 
-  results?.forEach((it) => {
-    if (it.status === 'Success')
-      console.log(`✅ Міграція ${it.migrationName} успішна!`);
-    else console.error(`❌ Помилка міграції ${it.migrationName}`);
-  });
+  if (results) {
+    for (const it of results) {
+      if (it.status === 'Success') {
+        console.log(`✅ Migration ${it.migrationName} успішна!`);
+      } else {
+        console.error(`❌ Migration error ${it.migrationName}`);
+      }
+    }
+  }
 
   if (error) {
-    console.error('Критична помилка:', error);
+    console.error('Critical error:', error);
     process.exit(1);
   }
 

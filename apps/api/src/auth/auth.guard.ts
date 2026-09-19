@@ -12,13 +12,12 @@ export class AuthGuard implements CanActivate {
   constructor(private jwtService: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const request = context.switchToHttp().getRequest();
 
     const token = this.extractTokenFromHeader(request);
 
     if (!token) {
-      throw new UnauthorizedException('Немає доступу (токен відсутній)');
+      throw new UnauthorizedException('No access (token missing)');
     }
 
     try {
@@ -26,10 +25,9 @@ export class AuthGuard implements CanActivate {
         sub: string;
         email: string;
       }>(token);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       request['user'] = payload;
     } catch {
-      throw new UnauthorizedException('Токен недійсний');
+      throw new UnauthorizedException('The token is invalid');
     }
 
     return true;

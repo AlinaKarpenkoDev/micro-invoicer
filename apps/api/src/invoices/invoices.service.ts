@@ -19,7 +19,7 @@ export class InvoicesService {
       .executeTakeFirst();
 
     if (!workspace) {
-      throw new NotFoundException('Простір не знайдено');
+      throw new NotFoundException('Workspace not found');
     }
 
     if (!workspace.is_pro) {
@@ -32,7 +32,9 @@ export class InvoicesService {
       const currentInvoicesCount = Number(count);
 
       if (currentInvoicesCount >= 3) {
-        throw new ForbiddenException('Ліміт безкоштовних інвойсів вичерпано');
+        throw new ForbiddenException(
+          'The limit on free invoices has been reached',
+        );
       }
     }
     const newInvoice = await this.db
@@ -80,7 +82,7 @@ export class InvoicesService {
       .executeTakeFirst();
 
     if (!workspace) {
-      throw new NotFoundException('Простір не знайдено');
+      throw new NotFoundException('Workspace not found');
     }
 
     const invoices = await this.db
@@ -91,7 +93,7 @@ export class InvoicesService {
       .executeTakeFirst();
 
     if (!invoices) {
-      throw new NotFoundException('Інвойс не знайдено');
+      throw new NotFoundException('Invoice not found');
     }
     return { ...invoices, is_pro: workspace.is_pro };
   }
@@ -103,7 +105,7 @@ export class InvoicesService {
       .where('user_id', '=', userId)
       .execute();
 
-    return { success: true, message: 'Оновлено до Pro!' };
+    return { success: true, message: 'Updated to Pro!' };
   }
 
   async savePdfUrl(invoiceId: string, pdfUrl: string) {
@@ -115,7 +117,6 @@ export class InvoicesService {
   }
 
   async getAllWorkspacesForAdmin() {
-    // Дістаємо всі простори разом з імейлами їх власників
     const workspaces = await this.db
       .selectFrom('workspaces')
       .innerJoin('users', 'users.id', 'workspaces.user_id')

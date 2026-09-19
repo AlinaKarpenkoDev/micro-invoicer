@@ -5,8 +5,6 @@ export interface UsersTable {
   email: string;
   password_hash: string;
   role: 'OWNER' | 'ASSISTANT' | 'ADMIN';
-  // ColumnType<Select, Insert, Update>
-  // База сама ставить дату (тому Insert = string | undefined), а змінювати її не можна (Update = never)
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
@@ -21,21 +19,20 @@ export interface WorkspacesTable {
 export interface SessionsTable {
   id: string;
   user_id: string;
-  user_agent: string; // З якого браузера зайшли
+  user_agent: string;
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
 export interface InvoicesTable {
   id: Generated<string>;
-  workspace_id: string; // До якого простору належить інвойс
+  workspace_id: string;
   client_name: string;
   amount: number;
   status: 'PENDING' | 'PAID';
-  pdf_url: string | null; // Спочатку PDF немає, тому null
+  pdf_url: string | null;
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
-// Головний інтерфейс нашої бази
 export interface Database {
   users: UsersTable;
   workspaces: WorkspacesTable;

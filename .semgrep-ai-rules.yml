@@ -1,0 +1,450 @@
+# ==============================================================================
+# .semgrep-ai-rules.yml
+# Комплексний набір правил для виявлення антипатернів згенерованого AI коду
+#
+# Категорії:
+# 1. Архитектурні та структурні антипатерни (Premature Abstraction / Over-Engineering)
+# 2. Типізація та контрактні дефекти (Type Evasion / Partial-Everything)
+# 3. Надійність та обробка помилок (Exception Swallowing / Missing Error Returns)
+# 4. Асинхронність та ресурси (Unawaited Promises / Sync in Async / Leaks)
+# 5. Безпека та ізоляція (Injection Traps / Hardcoded Secrets / Permissive Defaults)
+# 6. Тестування та верифікація (Tautological Tests / Implementation Testing)
+# 7. Екосистемні та середовищні аномалії (Zombie Dependencies / Version Anachronism)
+# 8. Ментальні антипатерни розробника (Process Smells: Vibe Coding / Whack-a-Mole)
+# ==============================================================================
+
+rules:
+  # ============================================================================
+  # 1. АРХІТЕКТУРНІ ТА СТРУКТУРНІ АНТИПАТЕРНИ
+  # ============================================================================
+
+  - id: ai-anti-pattern-overengineering-naming-bloat
+    message: |
+      AI Anti-pattern (Premature Abstraction / Over-Engineering):
+      Роздута назва класу/фабрики ($CLASS).
+      AI схильний генерувати 4–5 шарів абстракцій (EventDispatcherServiceFactory,
+      StrategyManagerProvider тощо) для задач, що вирішуються чистою функцією на 10 рядків.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern: class $CLASS { ... }
+      - metavariable-regex:
+          metavariable: $CLASS
+          regex: ".*(DispatcherServiceFactory|ManagerProviderStrategy|ServiceFactoryStrategy|EventDispatcherFactory)$"
+    metadata:
+      category: ai-antipattern
+      subcategory: architecture
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-singleton-export
+    message: |
+      AI Anti-pattern (Frankenstein Architecture / Singleton Abuse):
+      Експорт створеного екземпляра класу як глобального сінглтона (export default new $CLASS()).
+      Це створює прихований спільний стан, ускладнює тестування і порушує модульність.
+      Використовуйте Dependency Injection або фабричні функції.
+    severity: WARNING
+    languages: [ts, js]
+    pattern: export default new $CLASS(...)
+    metadata:
+      category: ai-antipattern
+      subcategory: architecture
+      impact: MEDIUM
+
+  # ============================================================================
+  # 2. ТИПІЗАЦІЯ ТА КОНТРАКТНІ ДЕФЕКТИ
+  # ============================================================================
+
+  - id: ai-anti-pattern-type-evasion-any
+    message: |
+      AI Anti-pattern (Type Evasion / "any"-ification): Використання 'as any'.
+      Коли виникає конфлікт дженериків, AI обирає шлях найменшого опору, знищуючи
+      гарантії компілятора. Використовуйте дженерики або звуження типів (narrowing).
+    severity: ERROR
+    languages: [ts]
+    pattern: $X as any
+    metadata:
+      category: ai-antipattern
+      subcategory: type-safety
+      impact: HIGH
+
+  - id: ai-anti-pattern-type-evasion-unknown-cast
+    message: |
+      AI Anti-pattern (Type Evasion): Подвійне приведення '$X as unknown as $T'.
+      Класичний хак нейромереж для обходу несумісності типів TypeScript.
+      Застосовуйте рантайм-валідацію через Zod або перегляньте дизайн інтерфейсу.
+    severity: ERROR
+    languages: [ts]
+    pattern: $X as unknown as $T
+    metadata:
+      category: ai-antipattern
+      subcategory: type-safety
+      impact: HIGH
+
+  - id: ai-anti-pattern-non-null-assertion
+    message: |
+      AI Anti-pattern (Type Evasion): Оператор '!' (non-null assertion).
+      AI глушить перевірку null/undefined знаком '!', ризикуючи падінням у рантаймі.
+      Використовуйте 'if (x == null)' або optional chaining '?.'.
+    severity: WARNING
+    languages: [ts]
+    pattern-either:
+      - pattern: $X!.$PROP
+      - pattern: ($X)!.$PROP
+    metadata:
+      category: ai-antipattern
+      subcategory: type-safety
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-unvalidated-json-parse-cast
+    message: |
+      AI Anti-pattern (No Boundary Defense): 'JSON.parse(...) as $T'.
+      Сліпе припущення, що зовнішні дані завжди відповідають типу $T.
+      При зміні формату даних код впаде з Cannot read properties of undefined.
+      Обов'язково використовуйте Zod (schema.parse(JSON.parse(...))) або TypeBox.
+    severity: ERROR
+    languages: [ts]
+    pattern: JSON.parse(...) as $T
+    metadata:
+      category: ai-antipattern
+      subcategory: data-validation
+      impact: HIGH
+
+  # ============================================================================
+  # 3. НАДІЙНІСТЬ ТА ОБРОБКА ПОМИЛОК
+  # ============================================================================
+
+  - id: ai-anti-pattern-empty-catch
+    message: |
+      AI Anti-pattern (Exception Swallowing): Порожній блок 'catch'.
+      AI часто ховає помилки, щоб код 'не падав', залишаючи застосунок у невалідному зомбі-стані.
+      Обробіть виняток або прокиньте його далі (throw).
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: |
+          try {
+            ...
+          } catch ($E) {
+          }
+      - pattern: |
+          try {
+            ...
+          } catch {
+          }
+    metadata:
+      category: ai-antipattern
+      subcategory: error-handling
+      impact: CRITICAL
+
+  - id: ai-anti-pattern-catch-only-console
+    message: |
+      AI Anti-pattern (Exception Swallowing): Блок 'catch' містить лише console.log/error.
+      Помилка ігнорується, і функція несподівано повертає undefined, що призводить
+      до ланцюгового падіння кількома кроками пізніше.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: |
+          try {
+            ...
+          } catch ($E) {
+            console.$LOG($...ARGS);
+          }
+      - pattern: |
+          try {
+            ...
+          } catch {
+            console.$LOG($...ARGS);
+          }
+    metadata:
+      category: ai-antipattern
+      subcategory: error-handling
+      impact: HIGH
+
+  - id: ai-anti-pattern-swallowed-promise-catch
+    message: |
+      AI Anti-pattern (Exception Swallowing): Порожній або лише логуючий .catch() у промісі.
+      Приховує збій асинхронної операції. Додайте повноцінну обробку помилки або прокидання.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: $P.catch(() => {})
+      - pattern: $P.catch(($E) => {})
+      - pattern: $P.catch(($E) => { console.$LOG(...); })
+    metadata:
+      category: ai-antipattern
+      subcategory: error-handling
+      impact: HIGH
+
+  # ============================================================================
+  # 4. АСИНХРОННІСТЬ ТА РЕСУРСИ
+  # ============================================================================
+
+  - id: ai-anti-pattern-async-foreach
+    message: |
+      AI Anti-pattern (Async Trap / Unawaited Promises): 'forEach(async (...) => { ... })'.
+      Метод 'forEach' не чекає на завершення промісів. Операції виконуються неконтрольовано,
+      а помилки губляться. Використовуйте 'for (const item of items)' або 'await Promise.all(items.map(...))'.
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: $ARR.forEach(async ($ITEM) => { ... })
+      - pattern: $ARR.forEach(async function ($ITEM) { ... })
+      - pattern: $ARR.forEach(async ($ITEM, $IDX) => { ... })
+      - pattern: $ARR.forEach(async () => { ... })
+    metadata:
+      category: ai-antipattern
+      subcategory: async-control-flow
+      impact: HIGH
+
+  - id: ai-anti-pattern-unawaited-async-map
+    message: |
+      AI Anti-pattern (Async Trap): Виклик '$ARR.map(async ...)' як окремий оператор без очікування.
+      Масив промісів створюється, але ніколи не очікується через await Promise.all().
+    severity: ERROR
+    languages: [ts, js]
+    patterns:
+      - pattern: $ARR.map(async ($ITEM) => { ... });
+      - pattern-regex: '\.map\s*\(\s*async\b'
+    metadata:
+      category: ai-antipattern
+      subcategory: async-control-flow
+      impact: HIGH
+
+  - id: ai-anti-pattern-blocking-sync-io
+    message: |
+      AI Anti-pattern (Blocking I/O in Async / Sync in Async):
+      Використання синхронних викликів fs.*Sync або execSync блокує Event Loop.
+      У Bun використовуйте 'Bun.file(...).text()', 'Bun.write(...)', або 'node:fs/promises'.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: fs.readFileSync(...)
+      - pattern: fs.writeFileSync(...)
+      - pattern: readFileSync(...)
+      - pattern: writeFileSync(...)
+      - pattern: child_process.execSync(...)
+      - pattern: execSync(...)
+    metadata:
+      category: ai-antipattern
+      subcategory: performance
+      impact: HIGH
+
+  # ============================================================================
+  # 5. БЕЗПЕКА ТА ІЗОЛЯЦІЯ
+  # ============================================================================
+
+  - id: ai-anti-pattern-command-injection-template
+    message: |
+      AI Anti-pattern (Injection Trap): Інтерполяція рядків у системній команді exec(`...${...}...`).
+      AI часто конкатенує змінні в системні команди, створюючи критичну вразливість Command Injection.
+      Використовуйте Bun.spawn(["command", arg1, arg2]) з масивом аргументів без виклику шелу.
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: exec(`...${$VAR}...`)
+      - pattern: execSync(`...${$VAR}...`)
+      - pattern: child_process.exec(`...${$VAR}...`)
+      - pattern: child_process.execSync(`...${$VAR}...`)
+    metadata:
+      category: ai-antipattern
+      subcategory: security
+      impact: CRITICAL
+
+  - id: ai-anti-pattern-permissive-cors
+    message: |
+      AI Anti-pattern (Permissive Defaults): Встановлення надмірно відкритих прав CORS (origin: '*').
+      AI часто робить це, щоб подолати локальні помилки CORS, відкриваючи доступ до API будь-якому сайту.
+      Вкажіть точний домен або білий список дозволених джерел.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: "cors({ origin: '*' })"
+      - pattern: "cors({ origin: true })"
+      - pattern: '$RES.setHeader("Access-Control-Allow-Origin", "*")'
+    metadata:
+      category: ai-antipattern
+      subcategory: security
+      impact: HIGH
+
+  - id: ai-anti-pattern-permissive-tls
+    message: |
+      AI Anti-pattern (Permissive Defaults): Відключення TLS-верифікації (rejectUnauthorized: false).
+      Небезпечний хак для усунення проблем із самопідписаними сертифікатами, що відкриває шлях до MITM-атак.
+    severity: ERROR
+    languages: [ts, js]
+    pattern: "rejectUnauthorized: false"
+    metadata:
+      category: ai-antipattern
+      subcategory: security
+      impact: CRITICAL
+
+  - id: ai-anti-pattern-permissive-chmod
+    message: |
+      AI Anti-pattern (Permissive Defaults): Встановлення прав 777 (chmod 0o777).
+      AI надає повний доступ усім користувачам системи замість мінімально необхідних прав (0o755 або 0o644).
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: fs.chmodSync($PATH, 0o777)
+      - pattern: fs.chmod($PATH, 0o777, ...)
+      - pattern: chmodSync($PATH, 0o777)
+      - pattern: chmod($PATH, 0o777, ...)
+    metadata:
+      category: ai-antipattern
+      subcategory: security
+      impact: HIGH
+
+  # ============================================================================
+  # 6. ТЕСТУВАННЯ ТА ВЕРИФІКАЦІЯ
+  # ============================================================================
+
+  - id: ai-anti-pattern-tautological-assertion
+    message: |
+      AI Anti-pattern (Tautological Tests): Тест перевіряє значення саме з собою або тривіальну тавтологію.
+      Згенеровані тести часто 'зелені' лише тому, що нічого реального не перевіряють (expect(x).toBe(x)).
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: expect($X).toBe($X)
+      - pattern: expect($X).toEqual($X)
+      - pattern: expect(true).toBe(true)
+      - pattern: expect(false).toBe(false)
+      - pattern: assert.equal($X, $X)
+      - pattern: assert.deepEqual($X, $X)
+      - pattern: assert.strictEqual($X, $X)
+    metadata:
+      category: ai-antipattern
+      subcategory: testing
+      impact: HIGH
+
+  - id: ai-anti-pattern-empty-test
+    message: |
+      AI Anti-pattern (Tautological / Dummy Tests): Порожнє тіло тесту без асертів.
+      Тест завжди успішний, створюючи фіктивне покриття.
+    severity: ERROR
+    languages: [ts, js]
+    pattern-either:
+      - pattern: test($NAME, () => {})
+      - pattern: it($NAME, () => {})
+      - pattern: test($NAME, async () => {})
+      - pattern: it($NAME, async () => {})
+    metadata:
+      category: ai-antipattern
+      subcategory: testing
+      impact: HIGH
+
+  # ============================================================================
+  # 7. ЕКОСИСТЕМНІ ТА СЕРЕДОВИЩНІ АНОМАЛІЇ (Zombie Dependencies & Anachronisms)
+  # ============================================================================
+
+  - id: ai-anti-pattern-zombie-lodash
+    message: |
+      AI Anti-pattern (Zombie Dependencies): Імпорт бібліотеки 'lodash'.
+      У сучасному JavaScript більшість методів lodash замінені нативними еквівалентами:
+      structuredClone(), Object.keys(), Array.prototype.flat() тощо.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import $X from 'lodash'
+      - pattern: import $X from 'lodash-es'
+      - pattern: require('lodash')
+    metadata:
+      category: ai-antipattern
+      subcategory: zombie-dependencies
+      impact: LOW
+
+  - id: ai-anti-pattern-zombie-moment
+    message: |
+      AI Anti-pattern (Zombie Dependencies): Імпорт застарілої бібліотеки 'moment'.
+      Moment.js офіційно перебуває в режимі підтримки і не рекомендований для нових проєктів.
+      Використовуйте нативний об'єкт Intl, Date або легкі альтернативи (date-fns).
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import $X from 'moment'
+      - pattern: require('moment')
+    metadata:
+      category: ai-antipattern
+      subcategory: zombie-dependencies
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-zombie-uuid
+    message: |
+      AI Anti-pattern (Zombie Dependencies): Імпорт стороннього пакету 'uuid'.
+      У сучасному середовищі (Bun, Node.js 18+, браузери) є вбудований нативний метод:
+      'crypto.randomUUID()'. Зайва залежність не потрібна.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import $X from 'uuid'
+      - pattern: require('uuid')
+    metadata:
+      category: ai-antipattern
+      subcategory: zombie-dependencies
+      impact: LOW
+
+  - id: ai-anti-pattern-bun-legacy-fetch-libraries
+    message: |
+      AI Anti-pattern (Legacy Hallucinations): Імпорт '$LIB' у Bun проєкті.
+      Bun має нативний супершвидкий глобальний fetch().
+      Бібліотеки axios/node-fetch є зайвими та знижують швидкість.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import $X from 'axios'
+      - pattern: import $X from 'node-fetch'
+      - pattern: import $X from 'cross-fetch'
+      - pattern: import $X from 'request'
+      - pattern: import $X from 'got'
+      - pattern: require('axios')
+      - pattern: require('node-fetch')
+      - pattern: require('cross-fetch')
+    metadata:
+      category: ai-antipattern
+      subcategory: runtime-modernity
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-bun-legacy-dotenv
+    message: |
+      AI Anti-pattern (Legacy Hallucinations): Імпорт 'dotenv' у Bun проєкті.
+      Середовище Bun за замовчуванням автоматично читає змінні з '.env'.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: import 'dotenv'
+      - pattern: import 'dotenv/config'
+      - pattern: import $X from 'dotenv'
+      - pattern: require('dotenv')
+      - pattern: require('dotenv').config(...)
+    metadata:
+      category: ai-antipattern
+      subcategory: runtime-modernity
+      impact: LOW
+
+  - id: ai-anti-pattern-version-anachronism-var
+    message: |
+      AI Anti-pattern (Version Anachronism): Використання ключового слова 'var'.
+      AI, натренований на коді десятирічної давності, іноді генерує 'var' замість 'const' або 'let'.
+    severity: ERROR
+    languages: [ts, js]
+    patterns:
+      - pattern: var $X = $VAL
+      - pattern-regex: '\bvar\s+[a-zA-Z_$]'
+    metadata:
+      category: ai-antipattern
+      subcategory: runtime-modernity
+      impact: MEDIUM
+
+  - id: ai-anti-pattern-llm-stub-comment
+    message: |
+      AI Anti-pattern (Hallucination Leftovers): Знайдено коментар-заглушку від LLM:
+      '// ... rest of code ...', '// existing code remains unchanged' тощо.
+      Код не завершено або скопійовано фрагментарно.
+    severity: ERROR
+    languages: [ts, js]
+    pattern-regex: (?i)//\s*(?:\.\.\.\s*(?:rest of|existing)|rest of (?:your )?code|existing code remains|insert (?:code|implementation) here|add implementation here)
+    metadata:
+      category: ai-antipattern
+      subcategory: hygiene
+      impact: HIGH
