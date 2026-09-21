@@ -36,20 +36,6 @@ rules:
       subcategory: architecture
       impact: MEDIUM
 
-  - id: ai-anti-pattern-singleton-export
-    message: |
-      AI Anti-pattern (Frankenstein Architecture / Singleton Abuse):
-      Експорт створеного екземпляра класу як глобального сінглтона (export default new $CLASS()).
-      Це створює прихований спільний стан, ускладнює тестування і порушує модульність.
-      Використовуйте Dependency Injection або фабричні функції.
-    severity: WARNING
-    languages: [ts, js]
-    pattern: export default new $CLASS(...)
-    metadata:
-      category: ai-antipattern
-      subcategory: architecture
-      impact: MEDIUM
-
   # ============================================================================
   # 2. ТИПІЗАЦІЯ ТА КОНТРАКТНІ ДЕФЕКТИ
   # ============================================================================
