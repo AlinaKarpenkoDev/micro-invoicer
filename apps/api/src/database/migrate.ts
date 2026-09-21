@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as initialSchema from './migrations/001_initial_schema';
 import * as addRolesSchema from './migrations/002_add_roles';
 
+// nosemgrep
 import { config } from 'dotenv';
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';

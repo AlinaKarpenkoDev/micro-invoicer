@@ -13,7 +13,6 @@ interface Workspace {
 }
 
 export default function AdminPage() {
-  const [role, setRole] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const router = useRouter();
 
@@ -26,7 +25,6 @@ export default function AdminPage() {
         return;
       } else {
         const payload = JSON.parse(atob(getToken.split(".")[1]));
-        setRole(payload.role);
 
         async function fetchWorkspaces() {
           const response = await fetch(

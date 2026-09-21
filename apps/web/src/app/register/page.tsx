@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -51,7 +50,7 @@ export default function RegisterPage() {
   }
 
   return (
-   <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans">
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="w-full max-w-md space-y-6 rounded-2xl bg-white p-10 shadow-xl ring-1 ring-gray-900/5"
@@ -67,7 +66,11 @@ export default function RegisterPage() {
               className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
               placeholder="email@gmail.com"
             />
-            {errors.email && <p className="mt-1 text-sm text-red-500">{errors.email.message}</p>}
+            {errors.email && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.email.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -77,7 +80,11 @@ export default function RegisterPage() {
               placeholder="password"
               type="password"
             />
-            {errors.password && <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>}
+            {errors.password && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.password.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -88,7 +95,9 @@ export default function RegisterPage() {
               type="password"
             />
             {errors.confirmPassword && (
-              <p className="mt-1 text-sm text-red-500">{errors.confirmPassword.message}</p>
+              <p className="mt-1 text-sm text-red-500">
+                {errors.confirmPassword.message}
+              </p>
             )}
           </div>
         </div>
@@ -101,7 +110,10 @@ export default function RegisterPage() {
         </button>
         <p className="mt-4 text-center text-sm text-gray-600">
           Вже є акаунт?{" "}
-          <Link href="/login" className="font-bold text-zinc-900 hover:underline">
+          <Link
+            href="/login"
+            className="font-bold text-zinc-900 hover:underline"
+          >
             Увійти
           </Link>
         </p>

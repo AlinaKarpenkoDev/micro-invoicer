@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { InvoiceDTO } from "@micro-invoicer/shared";
 import toast from "react-hot-toast";
@@ -239,10 +240,12 @@ export default function Home() {
                             ></path>
                           </svg>
                         ) : (
-                          <img
+                          <Image
                             src="/download.png"
                             alt="Завантажити"
-                            className="h-4 w-4 opacity-70 grayscale transition-all hover:grayscale-0"
+                            width={16}
+                            height={16}
+                            className="opacity-70 grayscale transition-all hover:grayscale-0"
                           />
                         )}
                       </button>
