@@ -11,18 +11,21 @@ const invoiceSchema = z.object({
   amount: z.coerce.number().positive("Сума має бути більшою за нуль"),
 });
 
-type InvoiceFormValues = z.infer<typeof invoiceSchema>;
+type InvoiceFormInput = z.input<typeof invoiceSchema>;
+type InvoiceFormOutput = z.output<typeof invoiceSchema>;
 
 export default function CreateInvoice() {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<InvoiceFormValues>({ resolver: zodResolver(invoiceSchema) });
+  } = useForm<InvoiceFormInput, undefined, InvoiceFormOutput>({
+    resolver: zodResolver(invoiceSchema),
+  });
 
   const router = useRouter();
 
-  async function onSubmit(data: InvoiceFormValues) {
+  async function onSubmit(data: InvoiceFormOutput) {
     try {
       const getToken = localStorage.getItem("token");
 
