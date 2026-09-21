@@ -77,12 +77,15 @@ Directory structure:
     │               │   └── page.tsx
     │               └── register/
     │                   └── page.tsx
-    └── packages/
-        └── shared/
-            ├── package.json
-            ├── tsconfig.json
-            └── src/
-                └── index.ts
+    ├── packages/
+    │   └── shared/
+    │       ├── package.json
+    │       ├── tsconfig.json
+    │       └── src/
+    │           └── index.ts
+    └── .github/
+        └── workflows/
+            └── ci.yml
 
 ================================================
 FILE: docker-compose.yml
@@ -662,7 +665,302 @@ rules:
 ================================================
 FILE: .semgrep-engineering-rules.yml
 ================================================
-[Binary file]
+# ==============================================================================
+# .semgrep-engineering-rules.yml
+# Класичні інженерні антипатерни в архітектурі, коді та тестах
+#
+# Категорії:
+# 1. Архітектурні та структурні (God Object, Lasagna Code, Circular Dependencies)
+# 2. Проєктування та ООП (Poltergeists, Lava Flow, Ghost Classes)
+# 3. Обробка помилок і стабільність (Catch-All, Error Swallowing, Magic Numbers, Blind Trust)
+# 4. Стан, асинхронність і паралелізм (Global State Pollution, Fire and Forget, Sync-in-Async)
+# 5. Якість коду та Clean Code (Reinventing the Wheel, Boolean Trap, Dead Code)
+# 6. Тестування (The Liar, Mock Happy, Slow Poke Tests)
+# ==============================================================================
+
+rules:
+  # ============================================================================
+  # 1. АРХІТЕКТУРА ТА ПРОЄКТУВАННЯ
+  # ============================================================================
+
+  - id: engineering-anti-pattern-poltergeist-class
+    message: |
+      Класичний антипатерн (Poltergeists / Ghost Classes):
+      Клас із єдиним методом, який лише делегує виклик іншому об'єкту.
+      Такі короткоживучі 'класи-привиди' роздувають архітектуру (Lasagna Code)
+      без додавання цінності. Замініть клас на просту чисту функцію.
+    severity: INFO
+    languages: [ts, js]
+    pattern: |
+      class $CLASS {
+        execute($...ARGS) {
+          return $TARGET.$METHOD($...ARGS);
+        }
+      }
+    metadata:
+      category: engineering-antipattern
+      subcategory: oop-design
+      impact: LOW
+
+  - id: engineering-anti-pattern-lava-flow-dead-branch
+    message: |
+      Класичний антипатерн (Lava Flow / Dead Code):
+      Залишок мертвого коду в блоці 'if (false) { ... }' або 'if (0) { ... }'.
+      Не залишайте закоментовані чи вимкнені гілки в кодовій базі.
+      Історія змін надійно зберігається у Git — видаляйте мертвий код.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: |
+          if (false) {
+            ...
+          }
+      - pattern: |
+          if (0) {
+            ...
+          }
+    metadata:
+      category: engineering-antipattern
+      subcategory: clean-code
+      impact: MEDIUM
+
+  # ============================================================================
+  # 2. ОБРОБКА ПОМИЛОК І СТАБІЛЬНІСТЬ
+  # ============================================================================
+
+  - id: engineering-anti-pattern-catch-all-any
+    message: |
+      Класичний антипатерн (Catch-All / Error Evasion):
+      Перехоплення помилки типом 'any' (catch (error: any)).
+      Це маскує тип помилки і заважає компілятору контролювати властивості.
+      У сучасному TypeScript використовуйте 'catch (error: unknown)'
+      з явною перевіркою 'if (error instanceof Error)'.
+    severity: WARNING
+    languages: [ts]
+    pattern: |
+      try {
+        ...
+      } catch ($E: any) {
+        ...
+      }
+    metadata:
+      category: engineering-antipattern
+      subcategory: error-handling
+      impact: MEDIUM
+
+  - id: engineering-anti-pattern-magic-timeout
+    message: |
+      Класичний антипатерн (Magic Numbers):
+      Використання магічного числа ($NUM мс) у таймауті/інтервалі.
+      Жорстко закодовані значення (86400000, 3600000 тощо) ускладнюють читання
+      та конфігурування. Винесіть константу з розрахунком
+      (наприклад, ONE_DAY_MS = 24 * 60 * 60 * 1000) або у файл конфігурації.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern-either:
+          - pattern: setTimeout($CB, $NUM)
+          - pattern: setInterval($CB, $NUM)
+      - metavariable-regex:
+          metavariable: $NUM
+          regex: "^[1-9][0-9]{4,}$"
+    metadata:
+      category: engineering-antipattern
+      subcategory: clean-code
+      impact: LOW
+
+  - id: engineering-anti-pattern-blind-trust-req-json
+    message: |
+      Класичний антипатерн (Blind Trust / No Boundary Defense):
+      Приведення зовнішніх даних '(await req.json()) as $TYPE' без схеми валідації.
+      Будь-який зовнішній клієнт може надіслати неповні або невалідні дані.
+      Застосовуйте Zod (UserSchema.parse(await req.json())) для гарантії контрактів.
+    severity: ERROR
+    languages: [ts]
+    pattern-either:
+      - pattern: (await $REQ.json()) as $TYPE
+      - pattern: (await $REQ.json()) as unknown as $TYPE
+      - pattern: $REQ.body as $TYPE
+    metadata:
+      category: engineering-antipattern
+      subcategory: security
+      impact: HIGH
+
+  # ============================================================================
+  # 3. СТАН, АСИНХРОННІСТЬ І ПАРАЛЕЛІЗМ
+  # ============================================================================
+
+  - id: engineering-anti-pattern-global-mutable-state
+    message: |
+      Класичний антипатерн (Global State Pollution):
+      Експорт мутабельної змінної 'export let $VAR'.
+      Спільний глобальний стан призводить до непередбачуваних гонок (Race Conditions),
+      робить модулі неізольованими і ламає паралельний запуск тестів.
+      Використовуйте інкапсуляцію в класи/функції або Dependency Injection.
+    severity: ERROR
+    languages: [ts, js]
+    pattern: export let $VAR = $VAL
+    metadata:
+      category: engineering-antipattern
+      subcategory: state-management
+      impact: HIGH
+
+  - id: engineering-anti-pattern-floating-fetch
+    message: |
+      Класичний антипатерн (Fire and Forget / Floating Promise):
+      Виклик fetch(...) як окремого виразу без await, return або обробки .catch().
+      У разі мережевого збою виникне unhandledRejection, а потік виконання продовжиться
+      без очікування результату.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern: fetch(...)
+      - pattern-not-inside: await fetch(...)
+      - pattern-not-inside: return fetch(...)
+      - pattern-not-inside: const $X = fetch(...)
+      - pattern-not-inside: let $X = fetch(...)
+      - pattern-not-inside: fetch(...).then(...)
+      - pattern-not-inside: fetch(...).catch(...)
+    metadata:
+      category: engineering-antipattern
+      subcategory: async
+      impact: HIGH
+
+  # ============================================================================
+  # 4. ЯКІСТЬ КОДУ ТА ЧИСТИЙ КОД (Clean Code)
+  # ============================================================================
+
+  - id: engineering-anti-pattern-boolean-trap
+    message: |
+      Класичний антипатерн (Boolean Trap):
+      Виклик функції з кількома послідовними булевими літералами (..., true, false, ...).
+      Під час читання виклику неможливо зрозуміти, за що відповідає кожен прапорець.
+      Використовуйте Options Object (наприклад, { verbose: true, dryRun: false }).
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: $FN(..., true, false, ...)
+      - pattern: $FN(..., false, true, ...)
+      - pattern: $FN(..., true, true, ...)
+      - pattern: $FN(..., false, false, ...)
+    metadata:
+      category: engineering-antipattern
+      subcategory: clean-code
+      impact: LOW
+
+  - id: engineering-anti-pattern-reinventing-clone
+    message: |
+      Класичний антипатерн (Reinventing the Wheel):
+      Використання 'JSON.parse(JSON.stringify($X))' для глибокого клонування об'єкта.
+      Цей метод повільний, втрачає типи Date, Map, Set, RegExp та викликає помилку
+      на циклічних посиланнях. Використовуйте нативний метод 'structuredClone($X)'.
+    severity: WARNING
+    languages: [ts, js]
+    pattern: JSON.parse(JSON.stringify($X))
+    metadata:
+      category: engineering-antipattern
+      subcategory: clean-code
+      impact: MEDIUM
+
+  # ============================================================================
+  # 5. ТЕСТУВАННЯ (Testing Smells)
+  # ============================================================================
+
+  - id: engineering-anti-pattern-slow-poke-test-sleep
+    message: |
+      Класичний антипатерн (Slow Poke Tests / Arbitrary Sleep):
+      Використання паузи sleep() або setTimeout() всередині тестів.
+      Штучні затримки уповільнюють виконання тестів на CI та роблять їх нестабільними (flaky).
+      Використовуйте підписку на події, polling очікування умов або мокінг системного таймера.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern-either:
+          - pattern: await sleep(...)
+          - pattern: sleep(...)
+          - pattern: await Bun.sleep(...)
+          - pattern: Bun.sleep(...)
+      - pattern-inside: |
+          test(..., ...)
+    metadata:
+      category: engineering-antipattern
+      subcategory: testing
+      impact: MEDIUM
+
+  - id: engineering-anti-pattern-mock-happy-tautology
+    message: |
+      Класичний антипатерн (Mock Happy / The Liar):
+      Тест одразу звіряє значення, яке сам щойно захардкодив у мок: expect($MOCK()).toBe($VAL).
+      Тестується лише працездатність самого мока, а не цільова поведінка бізнес-логіки.
+    severity: WARNING
+    languages: [ts, js]
+    pattern: |
+      $MOCK.mockReturnValue($VAL);
+      ...
+      expect($MOCK()).toBe($VAL);
+    metadata:
+      category: engineering-antipattern
+      subcategory: testing
+      impact: HIGH
+
+  # ============================================================================
+  # 6. БАЗА ДАНИХ ТА ЧИТАБЕЛЬНІСТЬ (Database & Readability)
+  # ============================================================================
+
+  - id: engineering-anti-pattern-double-negative-boolean
+    message: |
+      Класичний антипатерн (Double Negative Boolean):
+      Подвійне заперечення (!isNot... або !hasNo...).
+      Це створює зайве ментальне навантаження. Використовуйте позитивні назви (isEnabled, hasAccess).
+    severity: WARNING
+    languages: [ts, js]
+    pattern-either:
+      - pattern: "!$OBJ.isNot$NAME"
+      - pattern: "!$OBJ.hasNo$NAME"
+      - pattern: "!isNot$NAME"
+      - pattern: "!hasNo$NAME"
+    metadata:
+      category: engineering-antipattern
+      subcategory: readability
+      impact: LOW
+
+  - id: engineering-anti-pattern-select-star
+    message: |
+      Класичний антипатерн (SELECT * / Overhead Query):
+      Запит витягує всі стовпчики (SELECT *).
+      Це призводить до передачі надлишкових даних, блокує оптимізацію індексів (Covering Indexes)
+      та може призвести до витоку конфіденційних полів. Явно вказуйте необхідні колонки.
+    severity: WARNING
+    languages: [ts, js]
+    pattern-regex: "(?i)\\bSELECT\\s+\\*\\s+FROM\\b"
+    metadata:
+      category: engineering-antipattern
+      subcategory: database
+      impact: MEDIUM
+
+  - id: engineering-anti-pattern-query-in-loop
+    message: |
+      Класичний антипатерн (N+1 Query / Query in Loop):
+      Виклик запиту до бази даних усередині циклу.
+      Це генерує сотні зайвих мережевих кругообігів. Використовуйте batch-запит з оператором IN(...)
+      або JOIN.
+    severity: WARNING
+    languages: [ts, js]
+    patterns:
+      - pattern-either:
+          - pattern: await $DB.select(...)
+          - pattern: await $DB.query(...)
+          - pattern: await $DB.execute(...)
+      - pattern-inside: |
+          for (...) {
+            ...
+          }
+    metadata:
+      category: engineering-antipattern
+      subcategory: database
+      impact: HIGH
+
+
 
 
 ================================================
@@ -1270,7 +1568,7 @@ export class AuthService {
         .insertInto('workspaces')
         .values({
           user_id: newUser.id,
-          name: 'My first space',
+          name: 'Personal Workspace',
         })
         .execute();
 
@@ -1486,6 +1784,7 @@ import * as path from 'path';
 import * as initialSchema from './migrations/001_initial_schema';
 import * as addRolesSchema from './migrations/002_add_roles';
 
+// nosemgrep
 import { config } from 'dotenv';
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
@@ -2159,6 +2458,9 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
+<!-- CodeRabbit Test -->
+<!-- Trigger GitHub Actions -->
+
 
 
 ================================================
@@ -2269,11 +2571,7 @@ FILE: apps/web/package.json
     "lint": "eslint"
   },
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
     "@hookform/resolvers": "^5.9.1",
-    "@mui/material": "^9.3.1",
-    "@mui/material-nextjs": "^9.3.0",
     "next": "^16.3.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -2383,7 +2681,6 @@ body {
 ================================================
 FILE: apps/web/src/app/layout.tsx
 ================================================
-import { AppRouterCacheProvider } from "@mui/material-nextjs/v14-appRouter";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -2395,14 +2692,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AppRouterCacheProvider>
-          <Providers>{children}</Providers>
-        </AppRouterCacheProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
 }
-
 
 
 ================================================
@@ -2410,6 +2704,7 @@ FILE: apps/web/src/app/page.tsx
 ================================================
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { InvoiceDTO } from "@micro-invoicer/shared";
 import toast from "react-hot-toast";
@@ -2512,44 +2807,57 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-sans">
-      {role === "ADMIN" && (
-        <button
-          onClick={() => router.push("/admin")}
-          className="rounded-xl bg-zinc-700 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-zinc-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 border-none outline-none"
-        >
-          Admin Panel
-        </button>
-      )}
       {isAdminImpersonating && (
-        <div className="mb-6 flex items-center justify-between rounded-lg bg-red-100 p-4 shadow-sm border border-red-200">
-          <div className="flex items-center gap-3">
-            <span className="flex h-3 w-3 animate-pulse rounded-full bg-red-600"></span>
-            <span className="text-sm font-bold text-red-900">
-              Ви перебуваєте в режимі перегляду від імені іншого користувача
-            </span>
+        <div className="mx-auto mb-8 max-w-4xl">
+          <div className="flex items-center justify-between rounded-xl bg-zinc-800 px-6 py-4 shadow-lg ring-1 ring-slate-800">
+            <div className="flex items-center gap-4">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-zinc-400 opacity-75"></span>
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-zinc-500"></span>
+              </span>
+              <span className="text-sm font-medium text-slate-200">
+                Режим перегляду:
+                <span className="font-bold text-white"> Адміністратор</span>
+              </span>
+            </div>
+            <button
+              onClick={handleLeaveImpersonation}
+              className="rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer border-none outline-none"
+            >
+              Повернутися
+            </button>
           </div>
-          <button
-            onClick={handleLeaveImpersonation}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700 border-none outline-none"
-          >
-            Повернутися до панелі Адміністратора
-          </button>
         </div>
       )}
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Мої Інвойси</h1>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
+              Мої Інвойси
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Керування рахунками та оплатами
+            </p>
+          </div>
 
           <div className="flex items-center gap-3">
+            {role === "ADMIN" && (
+              <button
+                onClick={() => router.push("/admin")}
+                className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-gay-500 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer border-none outline-none"
+              >
+                Адмінка
+              </button>
+            )}
             <button
               onClick={() => router.push("/create")}
-              className="inline-flex items-center justify-center rounded-md bg-zinc-800  px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none"
+              className="inline-flex items-center justify-center rounded-md bg-zinc-800  px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none cursor-pointer"
             >
               + Створити
             </button>
             <button
               onClick={handleLogout}
-              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2 border-none outline-none"
+              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2 border-none outline-none cursor-pointer"
             >
               Вийти
             </button>
@@ -2612,7 +2920,7 @@ export default function Home() {
                         onClick={() => handleDownload(inv.id)}
                         disabled={downloadingId === inv.id}
                         title="Завантажити PDF"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 border-none outline-none"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 border-none outline-none cursor-pointer"
                       >
                         {downloadingId === inv.id ? (
                           <svg
@@ -2636,10 +2944,12 @@ export default function Home() {
                             ></path>
                           </svg>
                         ) : (
-                          <img
+                          <Image
                             src="/download.png"
                             alt="Завантажити"
-                            className="h-4 w-4 opacity-70 grayscale transition-all hover:grayscale-0"
+                            width={16}
+                            height={16}
+                            className="opacity-70 grayscale transition-all hover:grayscale-0"
                           />
                         )}
                       </button>
@@ -2665,7 +2975,7 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => router.push("/pro")}
-                  className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
                 >
                   Upgrade to Pro
                 </button>
@@ -2681,7 +2991,7 @@ export default function Home() {
                 {role === "OWNER" && (
                   <button
                     onClick={() => router.push("/pro")}
-                    className="rounded-xl bg-zinc-700 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-zinc-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 border-none outline-none"
+                    className="rounded-xl bg-zinc-700 px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-zinc-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 border-none outline-none cursor-pointer"
                   >
                     Upgrade to Pro
                   </button>
@@ -2701,25 +3011,16 @@ export default function Home() {
 FILE: apps/web/src/app/providers.tsx
 ================================================
 "use client";
-
-import { ThemeProvider, createTheme } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import { Toaster } from "react-hot-toast";
-
-const theme = createTheme({
-  cssVariables: true,
-});
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <>
       {children}
       <Toaster />
-    </ThemeProvider>
+    </>
   );
 }
-
 
 
 ================================================
@@ -2740,7 +3041,6 @@ interface Workspace {
 }
 
 export default function AdminPage() {
-  const [role, setRole] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const router = useRouter();
 
@@ -2753,7 +3053,6 @@ export default function AdminPage() {
         return;
       } else {
         const payload = JSON.parse(atob(getToken.split(".")[1]));
-        setRole(payload.role);
 
         async function fetchWorkspaces() {
           const response = await fetch(
@@ -2819,15 +3118,20 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-sans">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-8 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">
-            Панель Адміністратора
-          </h2>
+        <div className="mb-8 flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div>
+            <h2 className="text-2xl font-extrabold tracking-tight text-gray-900">
+              Панель Адміністратора
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Керування просторами та користувачами
+            </p>
+          </div>
           <button
             onClick={() => router.push("/")}
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow cursor-pointer"
           >
-            Повернутися на сайт
+            На сайт
           </button>
         </div>
 
@@ -2871,7 +3175,7 @@ export default function AdminPage() {
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                     <button
                       onClick={() => handleImpersonate(ws.owner_id)}
-                      className="inline-flex items-center justify-center rounded-md bg-black px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-gray-800 focus:outline-none"
+                      className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 hover:shadow focus:outline-none focus:ring-2 focus:ring-gray-200 cursor-pointer"
                     >
                       Увійти як
                     </button>
@@ -2955,40 +3259,59 @@ export default function CreateInvoice() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-white p-8 shadow-md"
+        className="w-full max-w-md space-y-6 rounded-2xl bg-white p-10 shadow-xl ring-1 ring-gray-900/5"
       >
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
-          Create Invoice
+        <h2 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-gray-900">
+          Створити інвойс
         </h2>
 
-        <input
-          {...register("clientName")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="Введіть імя англійською.."
-        />
-        {errors.clientName && (
-          <p className="text-sm text-red-500">{errors.clientName.message}</p>
-        )}
+        <div className="space-y-4">
+          <div>
+            <input
+              {...register("clientName")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="Ім'я клієнта (англійською)"
+            />
+            {errors.clientName && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.clientName.message}
+              </p>
+            )}
+          </div>
 
-        <input
-          type="number"
-          {...register("amount")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="amount.."
-        />
-        {errors.amount && (
-          <p className="text-sm text-red-500">{errors.amount.message}</p>
-        )}
+          <div>
+            <input
+              type="number"
+              {...register("amount")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="Сума ($)"
+            />
+            {errors.amount && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.amount.message}
+              </p>
+            )}
+          </div>
+        </div>
 
-        <button
-          type="submit"
-          className="mt-2 w-full rounded-md bg-black p-2 font-medium text-white transition-colors hover:bg-gray-800 focus:outline-none"
-        >
-          Зберегти
-        </button>
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="flex w-full justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700 shadow-sm transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+          >
+            Скасувати
+          </button>
+          <button
+            type="submit"
+            className="flex w-full justify-center rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
+          >
+            Зберегти
+          </button>
+        </div>
       </form>
     </div>
   );
@@ -3001,7 +3324,6 @@ FILE: apps/web/src/app/login/page.tsx
 ================================================
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -3049,37 +3371,47 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-white p-8 shadow-md"
+        className="w-full max-w-md space-y-6 rounded-2xl bg-white p-10 shadow-xl ring-1 ring-gray-900/5"
       >
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+        <h2 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-gray-900">
           Увійти
         </h2>
 
-        <input
-          {...register("email")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="email@gmail.com"
-        />
-        {errors.email && (
-          <p className="text-sm text-red-500">{errors.email.message}</p>
-        )}
+        <div className="space-y-4">
+          <div>
+            <input
+              {...register("email")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="email@gmail.com"
+            />
+            {errors.email && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.email.message}
+              </p>
+            )}
+          </div>
 
-        <input
-          {...register("password")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="password"
-          type="password"
-        />
-        {errors.password && (
-          <p className="text-sm text-red-500">{errors.password.message}</p>
-        )}
+          <div>
+            <input
+              {...register("password")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="password"
+              type="password"
+            />
+            {errors.password && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.password.message}
+              </p>
+            )}
+          </div>
+        </div>
 
         <button
           type="submit"
-          className="mt-2 w-full rounded-md bg-black p-2 font-medium text-white transition-colors hover:bg-gray-800 focus:outline-none"
+          className="flex w-full justify-center rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
         >
           Увійти
         </button>
@@ -3087,7 +3419,7 @@ export default function LoginPage() {
           Ще немає акаунту?{" "}
           <Link
             href="/register"
-            className="font-medium text-black hover:underline"
+            className="font-bold text-zinc-900 hover:underline"
           >
             Зареєструватися
           </Link>
@@ -3135,6 +3467,26 @@ export default function ProPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-8 font-sans">
+      <button
+        type="button"
+        onClick={() => router.push("/")}
+        className="absolute left-8 top-8 flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm ring-1 ring-gray-900/5 transition-all hover:-translate-x-1 hover:bg-gray-50 hover:shadow focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 border-none"
+      >
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth="2.5"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+          />
+        </svg>
+        Повернутися
+      </button>
       <div className="mx-auto w-full max-w-5xl">
         <div className="mb-12 text-center">
           <h1 className="text-3xl font-bold text-gray-900">
@@ -3267,7 +3619,6 @@ export default function ProPage() {
 FILE: apps/web/src/app/register/page.tsx
 ================================================
 "use client";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -3319,48 +3670,61 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-white p-8 shadow-md"
+        className="w-full max-w-md space-y-6 rounded-2xl bg-white p-10 shadow-xl ring-1 ring-gray-900/5"
       >
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+        <h2 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-gray-900">
           Реєстрація
         </h2>
 
-        <input
-          {...register("email")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="email@gmail.com"
-        />
-        {errors.email && (
-          <p className="text-sm text-red-500">{errors.email.message}</p>
-        )}
+        <div className="space-y-4">
+          <div>
+            <input
+              {...register("email")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="email@gmail.com"
+            />
+            {errors.email && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.email.message}
+              </p>
+            )}
+          </div>
 
-        <input
-          {...register("password")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="password"
-          type="password"
-        />
-        {errors.password && (
-          <p className="text-sm text-red-500">{errors.password.message}</p>
-        )}
-        <input
-          {...register("confirmPassword")}
-          className="w-full rounded-md border p-2 focus:border-black focus:outline-none"
-          placeholder="confirm password"
-          type="password"
-        />
-        {errors.confirmPassword && (
-          <p className="text-sm text-red-500">
-            {errors.confirmPassword.message}
-          </p>
-        )}
+          <div>
+            <input
+              {...register("password")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="password"
+              type="password"
+            />
+            {errors.password && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.password.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <input
+              {...register("confirmPassword")}
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              placeholder="confirm password"
+              type="password"
+            />
+            {errors.confirmPassword && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.confirmPassword.message}
+              </p>
+            )}
+          </div>
+        </div>
 
         <button
           type="submit"
-          className="mt-2 w-full rounded-md bg-black p-2 font-medium text-white transition-colors hover:bg-gray-800 focus:outline-none"
+          className="flex w-full justify-center rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2"
         >
           Зареєструватися
         </button>
@@ -3368,7 +3732,7 @@ export default function RegisterPage() {
           Вже є акаунт?{" "}
           <Link
             href="/login"
-            className="font-medium text-black hover:underline"
+            className="font-bold text-zinc-900 hover:underline"
           >
             Увійти
           </Link>
@@ -3425,5 +3789,57 @@ export interface InvoiceDTO {
   amount: number;
   status: "PENDING" | "PAID";
 }
+
+
+
+================================================
+FILE: .github/workflows/ci.yml
+================================================
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-and-test:
+    name: Build Project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Build project
+        run: npm run build
+
+  security-scan:
+    name: Semgrep Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: |
+            .semgrep-ai-rules.yml
+            .semgrep-engineering-rules.yml
 
 

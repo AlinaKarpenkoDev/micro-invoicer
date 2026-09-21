@@ -99,7 +99,7 @@ export class InvoicesService {
   }
 
   async upgradeWorkspace(userId: string) {
-    const workspace = await this.db
+    await this.db
       .updateTable('workspaces')
       .set({ is_pro: true })
       .where('user_id', '=', userId)

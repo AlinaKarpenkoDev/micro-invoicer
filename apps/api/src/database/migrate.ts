@@ -7,12 +7,13 @@ import { config } from 'dotenv';
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import { Migrator } from 'kysely/migration';
+import { Database } from './database';
 
 const envPath = path.resolve(__dirname, '../../../../.env');
 config({ path: envPath });
 
 async function runMigrations() {
-  const db = new Kysely<any>({
+  const db = new Kysely<Database>({
     dialect: new PostgresDialect({
       pool: new Pool({ connectionString: process.env.DATABASE_URL }),
     }),
@@ -21,11 +22,11 @@ async function runMigrations() {
   const migrator = new Migrator({
     db,
     provider: {
-      async getMigrations() {
-        return {
+      getMigrations() {
+        return Promise.resolve({
           '001_initial_schema': initialSchema,
           '002_add_roles': addRolesSchema,
-        };
+        });
       },
     },
   });
@@ -50,4 +51,4 @@ async function runMigrations() {
   await db.destroy();
 }
 
-runMigrations();
+runMigrations().catch(console.error);

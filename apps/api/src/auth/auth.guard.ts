@@ -12,7 +12,9 @@ export class AuthGuard implements CanActivate {
   constructor(private jwtService: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user?: unknown }>();
 
     const token = this.extractTokenFromHeader(request);
 
@@ -25,7 +27,7 @@ export class AuthGuard implements CanActivate {
         sub: string;
         email: string;
       }>(token);
-      request['user'] = payload;
+      request.user = payload;
     } catch {
       throw new UnauthorizedException('The token is invalid');
     }

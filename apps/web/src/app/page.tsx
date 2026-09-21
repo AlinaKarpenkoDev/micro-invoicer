@@ -14,13 +14,15 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const getToken = localStorage.getItem("token");
+    const getToken = localStorage.getItem("token") as string;
 
     if (!getToken) {
       toast.error("Сесія застаріла, введіть логін повторно");
       router.push("/login");
       return;
-    } else {
+    }
+
+    async function fetchInvoices() {
       const payload = JSON.parse(atob(getToken.split(".")[1]));
       setRole(payload.role);
 
@@ -28,24 +30,23 @@ export default function Home() {
         setIsAdminImpersonating(true);
       }
 
-      async function fetchInvoices() {
-        const response = await fetch("http://localhost:4000/invoices", {
-          method: "GET",
-          headers: { Authorization: `Bearer ${getToken}` },
-        });
-        if (response.ok) {
-          const responseData = await response.json();
-          setInvoices(responseData.data);
-          setIsPro(responseData.isPro);
-        } else {
-          toast.error("Сесія застаріла, введіть логін повторно");
-          localStorage.removeItem("token");
-          router.push("/login");
-        }
-      }
+      const response = await fetch("http://localhost:4000/invoices", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${getToken}` },
+      });
 
-      fetchInvoices();
+      if (response.ok) {
+        const responseData = await response.json();
+        setInvoices(responseData.data);
+        setIsPro(responseData.isPro);
+      } else {
+        toast.error("Сесія застаріла, введіть логін повторно");
+        localStorage.removeItem("token");
+        router.push("/login");
+      }
     }
+
+    fetchInvoices();
   }, [router]);
 
   async function handleDownload(invoiceId: string) {
@@ -140,7 +141,7 @@ export default function Home() {
             {role === "ADMIN" && (
               <button
                 onClick={() => router.push("/admin")}
-                className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-gay-500 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer border-none outline-none"
+                className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-gray-500 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer border-none outline-none"
               >
                 Адмінка
               </button>

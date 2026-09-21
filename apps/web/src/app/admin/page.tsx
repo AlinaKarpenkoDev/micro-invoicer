@@ -17,7 +17,7 @@ export default function AdminPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const getToken = localStorage.getItem("token");
+    const getToken = localStorage.getItem("token") as string;
     try {
       if (!getToken) {
         toast.error("Сесія застаріла, введіть логін повторно");
@@ -61,7 +61,7 @@ export default function AdminPage() {
   }, [router]);
 
   async function handleImpersonate(targetUserId: string) {
-    const getToken = localStorage.getItem("token");
+    const getToken = localStorage.getItem("token") as string;
     try {
       const response = await fetch("http://localhost:4000/auth/impersonate", {
         method: "POST",

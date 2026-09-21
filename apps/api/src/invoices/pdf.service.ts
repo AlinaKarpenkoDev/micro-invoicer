@@ -45,7 +45,7 @@ export class PdfService {
 
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
       const chunks: Uint8Array[] = [];
-      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('data', (chunk: Uint8Array) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
       doc.end();

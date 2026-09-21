@@ -7,16 +7,19 @@ import {
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { AuthUserPayload } from '../auth/user.decorator';
+import { Request } from 'express';
 
 @Injectable()
 export class ImpersonationInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as AuthUserPayload;
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user?: AuthUserPayload }>();
+    const user = request.user;
 
     return next.handle().pipe(
-      map((response) => {
-        if (!user.is_impersonating) {
+      map((response: { data?: any[] } | undefined) => {
+        if (!user?.is_impersonating || !response?.data) {
           return response;
         }
 
