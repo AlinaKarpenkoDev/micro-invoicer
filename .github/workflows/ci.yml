@@ -1,0 +1,46 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-and-test:
+    name: Build Project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Завантаження коду
+        uses: actions/checkout@v4
+
+      - name: Налаштування Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Встановлення залежностей
+        run: npm ci
+
+      - name: Перевірка лінтером
+        run: npm run lint
+
+      - name: Збірка проекту (Build)
+        run: npm run build
+
+  security-scan:
+    name: Semgrep Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Завантаження коду
+        uses: actions/checkout@v4
+
+      - name: Запуск Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: |
+            .semgrep-ai-rules.yml
+            .semgrep-engineering-rules.yml
