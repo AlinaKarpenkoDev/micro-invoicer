@@ -12,22 +12,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Завантаження коду
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Налаштування Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
 
-      - name: Встановлення залежностей
+      - name: Install dependencies
         run: npm ci
 
-      - name: Перевірка лінтером
+      - name: Run linter
         run: npm run lint
 
-      - name: Збірка проекту (Build)
+      - name: Build project
         run: npm run build
 
   security-scan:
@@ -35,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Завантаження коду
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Запуск Semgrep
+      - name: Run Semgrep
         uses: returntocorp/semgrep-action@v1
         with:
           config: |
