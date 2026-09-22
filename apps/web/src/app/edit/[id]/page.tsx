@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,50 +15,100 @@ const invoiceSchema = z.object({
 type InvoiceFormInput = z.input<typeof invoiceSchema>;
 type InvoiceFormOutput = z.output<typeof invoiceSchema>;
 
-export default function CreateInvoice() {
+export default function ChangeInvoice() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<InvoiceFormInput, undefined, InvoiceFormOutput>({
     resolver: zodResolver(invoiceSchema),
   });
 
   const router = useRouter();
+  const params = useParams();
+
+  useEffect(() => {
+    const getToken = localStorage.getItem("token");
+
+    if (!getToken) {
+      router.push("/login");
+      return;
+    }
+
+    async function fetchInvoice() {
+      try {
+        const response = await fetch(
+          `http://localhost:4000/invoices/${params?.id}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${getToken}`,
+            },
+          },
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          reset({ clientName: data.client_name, amount: data.amount / 100 });
+        } else {
+          if (response.status === 401) {
+            localStorage.removeItem("token");
+            router.push("/login");
+            return;
+          }
+          const errorData = await response.json().catch(() => ({}));
+          toast.error(
+            errorData?.message || "Не вдалося завантажити дані інвойсу.",
+          );
+          router.push("/");
+        }
+      } catch {
+        toast.error("Помилка з'єднання з сервером.");
+      }
+    }
+
+    if (params?.id) {
+      fetchInvoice();
+    }
+  }, [params?.id, reset, router]);
 
   async function onSubmit(data: InvoiceFormOutput) {
     setIsSubmitting(true);
     try {
-      const getToken = localStorage.getItem("token") as string;
+      const getToken = localStorage.getItem("token");
 
       if (!getToken) {
         toast.error("Сесія застаріла, введіть логін повторно");
         router.push("/login");
         return;
       } else {
-        const response = await fetch("http://localhost:4000/invoices", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${getToken}`,
+        const response = await fetch(
+          `http://localhost:4000/invoices/${params.id}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${getToken}`,
+            },
+            body: JSON.stringify({
+              client_name: data.clientName,
+              amount: Math.round(data.amount * 100),
+            }),
           },
-          body: JSON.stringify({
-            client_name: data.clientName,
-            amount: Math.round(data.amount * 100),
-          }),
-        });
+        );
 
         if (!response.ok) {
           if (response.status === 403) {
             router.push("/pro");
           }
-
-          toast.error("Не вдалось створити інвойс, спробуйте ще раз.");
+          toast.error("Не вдалося оновити інвойс..");
           return;
         } else {
-          toast.success("Інвойс створено!");
+          toast.success("Дані успішно оновлені!");
           router.push("/");
         }
       }
@@ -76,7 +126,7 @@ export default function CreateInvoice() {
         className="w-full max-w-md space-y-6 rounded-2xl bg-white p-10 shadow-xl ring-1 ring-gray-900/5"
       >
         <h2 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-gray-900">
-          Створити інвойс
+          Редагувати інвойс
         </h2>
 
         <div className="space-y-4">

@@ -32,8 +32,7 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.message);
+        toast.error("Помилка авторизації. Перевірте введені дані.");
         return;
       } else {
         const responseData = await response.json();

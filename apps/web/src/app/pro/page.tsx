@@ -23,8 +23,7 @@ export default function ProPage() {
         toast.success("Тариф успішно оновлено!");
         router.push("/");
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.message);
+        toast.error("Не вдалося виконати дію. Спробуйте пізніше.");
       }
     }
   };

@@ -6,6 +6,9 @@ import {
   Get,
   Param,
   UseInterceptors,
+  Delete,
+  Patch,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -53,6 +56,12 @@ export class InvoicesController {
     @AuthUser() user: AuthUserPayload,
     @Param('id') id: string,
   ) {
+    if (user.is_impersonating) {
+      throw new ForbiddenException(
+        'This action is not permitted in admin mode.',
+      );
+    }
+
     const userId = user.sub;
     const invoice = await this.invoicesService.getInvoiceById(userId, id);
 
@@ -84,5 +93,55 @@ export class InvoicesController {
   @Get('admin/workspaces')
   async getAdminWorkspaces() {
     return this.invoicesService.getAllWorkspacesForAdmin();
+  }
+
+  @UseGuards(AuthGuard)
+  @Delete(':id')
+  async delete(@AuthUser() user: AuthUserPayload, @Param('id') id: string) {
+    if (user.is_impersonating) {
+      throw new ForbiddenException(
+        'This action is not permitted in admin mode.',
+      );
+    }
+
+    const userId = user.sub;
+
+    return this.invoicesService.deleteInvoice(userId, id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get(':id')
+  async getOne(@AuthUser() user: AuthUserPayload, @Param('id') id: string) {
+    if (user.is_impersonating) {
+      throw new ForbiddenException(
+        'This action is not permitted in admin mode.',
+      );
+    }
+    const userId = user.sub;
+
+    return this.invoicesService.getInvoiceById(userId, id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch(':id')
+  async update(
+    @AuthUser() user: AuthUserPayload,
+    @Param('id') id: string,
+    @Body() body: CreateInvoiceDto,
+  ) {
+    if (user.is_impersonating) {
+      throw new ForbiddenException(
+        'This action is not permitted in admin mode.',
+      );
+    }
+
+    const userId = user.sub;
+
+    return this.invoicesService.updateInvoice(
+      userId,
+      id,
+      body.client_name,
+      body.amount,
+    );
   }
 }

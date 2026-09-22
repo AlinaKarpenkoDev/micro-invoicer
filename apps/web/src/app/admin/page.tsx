@@ -18,46 +18,43 @@ export default function AdminPage() {
 
   useEffect(() => {
     const getToken = localStorage.getItem("token") as string;
-    try {
-      if (!getToken) {
-        toast.error("Сесія застаріла, введіть логін повторно");
-        router.push("/login");
-        return;
-      } else {
+
+    if (!getToken) {
+      router.push("/login");
+      return;
+    }
+
+    async function fetchWorkspaces() {
+      try {
         const payload = JSON.parse(atob(getToken.split(".")[1]));
-
-        async function fetchWorkspaces() {
-          const response = await fetch(
-            "http://localhost:4000/invoices/admin/workspaces",
-            {
-              method: "GET",
-              headers: { Authorization: `Bearer ${getToken}` },
-            },
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            setWorkspaces(data);
-            console.log(data);
-          } else {
-            toast.error("Сесія застаріла, введіть логін повторно");
-            localStorage.removeItem("token");
-            router.push("/login");
-          }
-        }
 
         if (!payload.role || payload.role !== "ADMIN") {
           toast.error("Доступ заборонено");
           router.push("/");
-        } else if (payload.role === "ADMIN") {
-          fetchWorkspaces();
+          return;
         }
+
+        const response = await fetch(
+          "http://localhost:4000/invoices/admin/workspaces",
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${getToken}` },
+          },
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setWorkspaces(data);
+        } else {
+          localStorage.removeItem("token");
+          router.push("/login");
+        }
+      } catch {
+        toast.error("Помилка з'єднання з сервером.");
       }
-    } catch {
-      toast.error("Недійсний токен або помилка авторизації");
-      localStorage.removeItem("token");
-      router.push("/login");
     }
+
+    fetchWorkspaces();
   }, [router]);
 
   async function handleImpersonate(targetUserId: string) {
@@ -79,8 +76,7 @@ export default function AdminPage() {
         toast.success("Сесію змінено!");
         router.push("/");
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.message);
+        toast.error("На жаль, не вдалося виконати дію..");
       }
     } catch {
       toast.error("Помилка з'єднання з сервером");
