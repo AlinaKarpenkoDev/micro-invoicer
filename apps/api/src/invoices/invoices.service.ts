@@ -131,4 +131,60 @@ export class InvoicesService {
 
     return workspaces;
   }
+
+  async deleteInvoice(userId: string, invoiceId: string) {
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .select(['id'])
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    await this.db
+      .deleteFrom('invoices')
+      .where('id', '=', invoiceId)
+      .where('workspace_id', '=', workspace.id)
+      .execute();
+
+    return {
+      success: true,
+      message: 'The invoice has been successfully deleted',
+    };
+  }
+
+  async updateInvoice(
+    userId: string,
+    invoiceId: string,
+    clientName: string,
+    amount: number,
+  ) {
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .select(['id'])
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    await this.db
+      .updateTable('invoices')
+      .set({
+        client_name: clientName,
+        amount: amount,
+        pdf_url: null,
+      })
+      .where('id', '=', invoiceId)
+      .where('workspace_id', '=', workspace.id)
+      .execute();
+
+    return {
+      success: true,
+      message: 'The invoice has been successfully updated',
+    };
+  }
 }

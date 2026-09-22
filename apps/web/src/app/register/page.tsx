@@ -37,8 +37,7 @@ export default function RegisterPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.message);
+        toast.error("Помилка авторизації. Перевірте введені дані.");
         return;
       } else {
         toast.success("Реєстрація успішно пройдена, підтвердіть дані!");
