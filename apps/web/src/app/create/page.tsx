@@ -73,7 +73,7 @@ export default function CreateInvoice() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 font-sans">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-md space-y-6 rounded-2xl bg-white p-10 shadow-xl ring-1 ring-gray-900/5"
+        className="w-full max-w-md space-y-6 rounded-2xl bg-white p-6 sm:p-10 shadow-xl ring-1 ring-gray-900/5"
       >
         <h2 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-gray-900">
           Створити інвойс

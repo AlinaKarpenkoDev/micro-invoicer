@@ -208,7 +208,7 @@ export default function Home() {
           </div>
         )}
         <div className="mx-auto max-w-4xl">
-          <div className="mb-8 flex items-center justify-between">
+          <div className="mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
                 Мої Інвойси
@@ -218,7 +218,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:gap-3">
               {role === "ADMIN" && (
                 <button
                   onClick={() => router.push("/admin")}
@@ -275,130 +275,189 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50/50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Клієнт
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Сума
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Статус
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {invoices.length === 0 ? (
+            <>
+              <div className="hidden w-full overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm sm:block">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50/50">
                     <tr>
-                      <td
-                        colSpan={4}
-                        className="px-6 py-12 text-center text-sm text-gray-500"
-                      >
-                        У вас ще немає інвойсів. Створіть перший!
-                      </td>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Клієнт
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Сума
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Статус
+                      </th>
+                      <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"></th>
                     </tr>
-                  ) : (
-                    invoices.map((inv) => (
-                      <tr
-                        key={inv.id}
-                        className="group transition-colors hover:bg-gray-50"
-                      >
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
-                          {inv.client_name}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                          ${(inv.amount / 100).toFixed(2)}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              inv.status === "PAID"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-yellow-100 text-yellow-800"
-                            }`}
-                          >
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
-                          {isAdminImpersonating ? (
-                            <span className="text-xs font-semibold text-gray-400">
-                              Тільки перегляд
-                            </span>
-                          ) : (
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleDownload(inv.id)}
-                                disabled={downloadingId === inv.id}
-                                title="Завантажити PDF"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 cursor-pointer border-none outline-none"
-                              >
-                                <Image
-                                  src="/download.png"
-                                  alt="Завантажити"
-                                  width={16}
-                                  height={16}
-                                  className="grayscale transition-all hover:grayscale-0 "
-                                />
-                              </button>
-
-                              <button
-                                onClick={() => router.push("/edit/" + inv.id)}
-                                title="Редагувати"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer border-none outline-none"
-                              >
-                                <svg
-                                  className="h-4 w-4"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                  />
-                                </svg>
-                              </button>
-
-                              <button
-                                onClick={() => confirmDelete(inv.id)}
-                                title="Видалити"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200 cursor-pointer border-none outline-none"
-                              >
-                                <svg
-                                  className="h-4 w-4"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                  />
-                                </svg>
-                              </button>
-                            </div>
-                          )}
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {invoices.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-6 py-12 text-center text-sm text-gray-500"
+                        >
+                          У вас ще немає інвойсів. Створіть перший!
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      invoices.map((inv) => (
+                        <tr
+                          key={inv.id}
+                          className="group transition-colors hover:bg-gray-50"
+                        >
+                          <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                            {inv.client_name}
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                            ${(inv.amount / 100).toFixed(2)}
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${inv.status === "PAID" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}
+                            >
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
+                            {isAdminImpersonating ? (
+                              <span className="text-xs font-semibold text-gray-400">
+                                Тільки перегляд
+                              </span>
+                            ) : (
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleDownload(inv.id)}
+                                  disabled={downloadingId === inv.id}
+                                  title="Завантажити PDF"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 cursor-pointer border-none outline-none"
+                                >
+                                  <Image
+                                    src="/download.png"
+                                    alt="Завантажити"
+                                    width={16}
+                                    height={16}
+                                    className="grayscale transition-all hover:grayscale-0 "
+                                  />
+                                </button>
+                                <button
+                                  onClick={() => router.push("/edit/" + inv.id)}
+                                  title="Редагувати"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer border-none outline-none"
+                                >
+                                  <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                    />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => confirmDelete(inv.id)}
+                                  title="Видалити"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200 cursor-pointer border-none outline-none"
+                                >
+                                  <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-col gap-4 sm:hidden">
+                {invoices.length === 0 ? (
+                  <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
+                    У вас ще немає інвойсів. Створіть перший!
+                  </div>
+                ) : (
+                  invoices.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-all active:scale-[0.98]"
+                    >
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="truncate text-lg font-bold text-gray-900">
+                          {inv.client_name}
+                        </span>
+                        <span
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${inv.status === "PAID" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}
+                        >
+                          {inv.status}
+                        </span>
+                      </div>
+                      <div className="mb-5 flex flex-col">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                          Сума до сплати
+                        </span>
+                        <span className="text-xl font-black text-gray-900">
+                          ${(inv.amount / 100).toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 border-t border-gray-100 pt-4">
+                        {isAdminImpersonating ? (
+                          <div className="w-full rounded-xl bg-gray-50 py-3 text-center text-sm font-bold text-gray-400">
+                            Тільки перегляд
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleDownload(inv.id)}
+                              disabled={downloadingId === inv.id}
+                              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-200 border-none outline-none"
+                            >
+                              PDF
+                            </button>
+                            <button
+                              onClick={() => router.push("/edit/" + inv.id)}
+                              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-100 border-none outline-none"
+                            >
+                              Змінити
+                            </button>
+                            <button
+                              onClick={() => confirmDelete(inv.id)}
+                              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-50 py-3 text-sm font-bold text-red-700 transition-colors hover:bg-red-100 border-none outline-none"
+                            >
+                              Видалити
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
           )}
           {!isPro && role === "OWNER" && !isAdminImpersonating && (
             <div className="mt-8">
               {invoices.length >= 3 ? (
-                <div className="flex items-center justify-between rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-6 shadow-sm">
+                <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 sm:p-6 shadow-sm">
                   <div className="flex flex-col">
                     <span className="text-lg font-bold text-indigo-900">
                       Досягнуто ліміт Free-тарифу
@@ -416,7 +475,7 @@ export default function Home() {
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-5 text-sm text-gray-600 shadow-sm">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 text-sm text-gray-600 shadow-sm">
                   <span className="font-medium text-gray-700">
                     Використано безкоштовних інвойсів:
                   </span>
