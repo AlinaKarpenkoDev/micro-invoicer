@@ -33,7 +33,8 @@ export default function ProPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-8 font-sans">
-      <button
+      <div className="mx-auto w-full max-w-5xl">
+        <button
         type="button"
         onClick={() => router.push("/")}
         className="absolute left-8 top-8 flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm ring-1 ring-gray-900/5 transition-all hover:-translate-x-1 hover:bg-gray-50 hover:shadow focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 border-none"
@@ -53,7 +54,6 @@ export default function ProPage() {
         </svg>
         Повернутися
       </button>
-      <div className="mx-auto w-full max-w-5xl">
         <div className="mb-12 text-center">
           <h1 className="text-3xl font-bold text-gray-900">
             Оберіть свій тариф
