@@ -104,7 +104,6 @@ export default function AdminPage() {
         </div>
 
         <>
-          {/* ДЕСКТОП: Таблиця */}
           <div className="hidden w-full overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm sm:block">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50/50">
