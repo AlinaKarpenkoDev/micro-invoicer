@@ -35,7 +35,7 @@ export default function AdminPage() {
         }
 
         const response = await fetch(
-          "http://localhost:4000/invoices/admin/workspaces",
+          process.env.NEXT_PUBLIC_API_URL + "/invoices/admin/workspaces",
           {
             method: "GET",
             headers: { Authorization: `Bearer ${getToken}` },
@@ -60,14 +60,17 @@ export default function AdminPage() {
   async function handleImpersonate(targetUserId: string) {
     const getToken = localStorage.getItem("token") as string;
     try {
-      const response = await fetch("http://localhost:4000/auth/impersonate", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${getToken}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        process.env.NEXT_PUBLIC_API_URL + "/auth/impersonate",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${getToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ targetUserId: targetUserId }),
         },
-        body: JSON.stringify({ targetUserId: targetUserId }),
-      });
+      );
 
       if (response.ok) {
         const data = await response.json();

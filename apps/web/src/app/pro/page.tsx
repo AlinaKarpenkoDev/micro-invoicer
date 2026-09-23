@@ -14,10 +14,13 @@ export default function ProPage() {
       router.push("/login");
       return;
     } else {
-      const response = await fetch("http://localhost:4000/invoices/upgrade", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${getToken}` },
-      });
+      const response = await fetch(
+        process.env.NEXT_PUBLIC_API_URL + "/invoices/upgrade",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${getToken}` },
+        },
+      );
 
       if (response.ok) {
         toast.success("Тариф успішно оновлено!");

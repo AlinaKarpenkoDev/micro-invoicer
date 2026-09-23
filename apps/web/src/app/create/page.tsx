@@ -38,17 +38,20 @@ export default function CreateInvoice() {
         router.push("/login");
         return;
       } else {
-        const response = await fetch("http://localhost:4000/invoices", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${getToken}`,
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_API_URL + "/invoices",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${getToken}`,
+            },
+            body: JSON.stringify({
+              client_name: data.clientName,
+              amount: Math.round(data.amount * 100),
+            }),
           },
-          body: JSON.stringify({
-            client_name: data.clientName,
-            amount: Math.round(data.amount * 100),
-          }),
-        });
+        );
 
         if (!response.ok) {
           if (response.status === 403) {

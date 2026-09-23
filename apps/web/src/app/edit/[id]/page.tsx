@@ -41,7 +41,7 @@ export default function ChangeInvoice() {
     async function fetchInvoice() {
       try {
         const response = await fetch(
-          `http://localhost:4000/invoices/${params?.id}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/invoices/${params?.id}`,
           {
             method: "GET",
             headers: {
@@ -87,7 +87,7 @@ export default function ChangeInvoice() {
         return;
       } else {
         const response = await fetch(
-          `http://localhost:4000/invoices/${params.id}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/invoices/${params.id}`,
           {
             method: "PATCH",
             headers: {

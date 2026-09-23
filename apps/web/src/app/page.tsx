@@ -34,10 +34,13 @@ export default function Home() {
           setIsAdminImpersonating(true);
         }
 
-        const response = await fetch("http://localhost:4000/invoices", {
-          method: "GET",
-          headers: { Authorization: `Bearer ${getToken}` },
-        });
+        const response = await fetch(
+          process.env.NEXT_PUBLIC_API_URL + "/invoices",
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${getToken}` },
+          },
+        );
 
         if (response.ok) {
           const responseData = await response.json();
@@ -72,7 +75,7 @@ export default function Home() {
         return;
       } else {
         const response = await fetch(
-          `http://localhost:4000/invoices/${invoiceId}/pdf`,
+          `${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoiceId}/pdf`,
           {
             method: "GET",
             headers: { Authorization: `Bearer ${getToken}` },
@@ -116,7 +119,7 @@ export default function Home() {
       }
 
       const response = await fetch(
-        `http://localhost:4000/invoices/${invoiceToDelete}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoiceToDelete}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${getToken}` },
