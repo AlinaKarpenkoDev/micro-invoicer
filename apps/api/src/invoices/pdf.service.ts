@@ -1,19 +1,36 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class PdfService {
-  private s3Client = new S3Client({
-    region: 'auto',
-    endpoint: process.env.R2_ENDPOINT,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-    },
-  });
+  private s3Client: S3Client;
+  constructor() {
+    if (
+      !process.env.R2_ACCESS_KEY_ID ||
+      !process.env.R2_SECRET_ACCESS_KEY ||
+      !process.env.R2_ENDPOINT
+    ) {
+      throw new Error('R2 credentials are not configured');
+    }
 
-  async generateInvoicePdf(clientName: string, amount: number, isPro: boolean) {
+    this.s3Client = new S3Client({
+      region: 'auto',
+      endpoint: process.env.R2_ENDPOINT,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      },
+    });
+  }
+
+  async generateInvoicePdf(
+    clientName: string,
+    amount: number,
+    isPro: boolean,
+    paymentDetails?: string | null,
+  ) {
     const doc = new PDFDocument({ margin: 50 });
 
     doc.fontSize(24).text('INVOICE', { align: 'center' }).moveDown(2);
@@ -23,6 +40,13 @@ export class PdfService {
       .fontSize(16)
       .text(`Total Amount: $${(amount / 100).toFixed(2)}`)
       .moveDown(3);
+
+    if (paymentDetails) {
+      doc
+        .fontSize(12)
+        .text('Payment Details: ' + paymentDetails)
+        .moveDown();
+    }
 
     doc
       .fontSize(12)
@@ -50,7 +74,7 @@ export class PdfService {
       doc.on('error', reject);
       doc.end();
     });
-    const fileName = `invoice-${Date.now()}.pdf`;
+    const fileName = `invoice-${randomUUID()}.pdf`;
     const command = new PutObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
       Key: fileName,

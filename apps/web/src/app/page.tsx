@@ -4,32 +4,48 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { InvoiceDTO } from "@micro-invoicer/shared";
 import toast from "react-hot-toast";
+import LogoutModal from "./components/LogoutModal";
+import LoadingSpinner from "./components/LoadingSpinner";
+import ServerDownError from "./components/ServerDownError";
+import AssistantModal from "./components/AssistantModal";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isServerDown, setIsServerDown] = useState(false);
   const [invoices, setInvoices] = useState<InvoiceDTO[]>([]);
+  const [archivedInvoices, setArchivedInvoices] = useState<InvoiceDTO[]>([]);
+  const [showArchived, setShowArchived] = useState<boolean>(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   const [isAdminImpersonating, setIsAdminImpersonating] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [totalInvoicesCount, setTotalInvoicesCount] = useState(0);
+  const [showAssistantModal, setShowAssistantModal] = useState(false);
+  const [assistants, setAssistants] = useState<{ id: string; email: string }[]>(
+    [],
+  );
+
   const router = useRouter();
 
   useEffect(() => {
     const getToken = localStorage.getItem("token") as string;
 
     if (!getToken) {
-      router.push("/login");
+      router.replace("/login");
+      return;
+    }
+
+    const payload = JSON.parse(atob(getToken.split(".")[1]));
+
+    if (payload.role === "ADMIN" && !localStorage.getItem("admin_token")) {
+      router.replace("/admin");
       return;
     }
 
     async function fetchInvoices() {
       try {
-        const payload = JSON.parse(atob(getToken.split(".")[1]));
-        setRole(payload.role);
-
         if (localStorage.getItem("admin_token")) {
           setIsAdminImpersonating(true);
         }
@@ -45,15 +61,18 @@ export default function Home() {
         if (response.ok) {
           const responseData = await response.json();
           setInvoices(responseData.data);
+          setRole(payload.role);
           setIsPro(responseData.isPro);
           setIsServerDown(false);
+          setTotalInvoicesCount(responseData.totalCount);
+          setArchivedInvoices(responseData.archived);
+          setAssistants(responseData.assistants || []);
         } else {
           localStorage.removeItem("token");
-          router.push("/login");
+          router.replace("/login");
         }
       } catch {
         setIsServerDown(true);
-        toast.error("Сервер перезапускається...", { id: "server-boot" });
         setTimeout(() => {
           fetchInvoices();
         }, 3000);
@@ -71,7 +90,7 @@ export default function Home() {
     try {
       if (!getToken) {
         toast.error("Сесія застаріла, введіть логін повторно");
-        router.push("/login");
+        router.replace("/login");
         return;
       } else {
         const response = await fetch(
@@ -89,7 +108,7 @@ export default function Home() {
           if (response.status === 401) {
             toast.error("Сесія застаріла, введіть логін повторно");
             localStorage.removeItem("token");
-            router.push("/login");
+            router.replace("/login");
           } else {
             const errorData = await response.json().catch(() => ({}));
             toast.error(errorData?.message || "Дія заборонена.");
@@ -114,7 +133,7 @@ export default function Home() {
     try {
       if (!getToken) {
         toast.error("Сесія застаріла, введіть логін повторно");
-        router.push("/login");
+        router.replace("/login");
         return;
       }
 
@@ -128,6 +147,13 @@ export default function Home() {
 
       if (response.ok) {
         toast.success("Інвойс видалено!");
+        const deletedItem = invoices.find((inv) => inv.id === invoiceToDelete);
+        if (deletedItem) {
+          setArchivedInvoices((prev) => [
+            ...prev,
+            { ...deletedItem, status: "DELETED" },
+          ]);
+        }
         setInvoices((prev) => prev.filter((inv) => inv.id !== invoiceToDelete));
       } else {
         toast.error("Не вдалося видалити інвойс.");
@@ -139,54 +165,71 @@ export default function Home() {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    router.push("/login");
-    toast.success("Ви вийшли з аккаунту!");
-  };
-
   const handleLeaveImpersonation = () => {
     const adminToken = localStorage.getItem("admin_token");
     if (adminToken) {
       localStorage.setItem("token", adminToken);
       localStorage.removeItem("admin_token");
       toast.success("Ви повернулися в адмінку!");
-      router.push("/admin");
+      router.replace("/admin");
     }
   };
 
+  async function handleToggleStatus(inv: InvoiceDTO) {
+    try {
+      const getToken = localStorage.getItem("token");
+
+      if (!getToken) {
+        toast.error("Сесія застаріла, введіть логін повторно");
+        router.replace("/login");
+        return;
+      }
+
+      if (showArchived == true) {
+        return;
+      }
+
+      const newStatus = inv.status === "PENDING" ? "PAID" : "PENDING";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/invoices/${inv.id}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${getToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: newStatus }),
+        },
+      );
+
+      if (response.ok) {
+        setInvoices((prev) =>
+          prev.map((item) =>
+            item.id === inv.id ? { ...item, status: newStatus } : item,
+          ),
+        );
+        toast.success("Статус змінено!");
+      } else {
+        toast.error("Не вдалося виконати дію..");
+      }
+    } catch {
+      toast.error("Помилка з'єднання з сервером");
+    }
+  }
+
+  const currentInvoices = showArchived ? archivedInvoices : invoices;
+
+  const getStatusColor = (status: InvoiceDTO["status"]) =>
+    status === "PAID"
+      ? "bg-green-100 text-green-800"
+      : status === "DELETED"
+        ? "bg-red-100 text-red-800"
+        : "bg-yellow-100 text-yellow-800";
+
   return (
     <div>
-      {isServerDown && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-50/90 backdrop-blur-sm">
-          <svg
-            className="mb-4 h-12 w-12 animate-spin text-zinc-900"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            ></circle>
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          <h2 className="text-2xl font-bold text-gray-900">
-            Перезапускаємо сервер...
-          </h2>
-          <p className="mt-2 text-gray-500">
-            Це може зайняти кілька секунд. Будь ласка, зачекайте.
-          </p>
-        </div>
-      )}
+      {isServerDown && <ServerDownError />}
       <div className="min-h-screen bg-gray-50 p-8 font-sans">
         {isAdminImpersonating && (
           <div className="mx-auto mb-8 max-w-4xl">
@@ -213,31 +256,50 @@ export default function Home() {
         <div className="mx-auto max-w-4xl">
           <div className="mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
-                Мої Інвойси
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
+                  Мої Інвойси
+                </h1>
+                {!isLoading && role === "ASSISTANT" && (
+                  <span className="inline-flex items-center rounded-full px-3 py-0.5 text-xs font-bold uppercase tracking-wider bg-blue-100 text-blue-800">
+                    ASSISTANT
+                  </span>
+                )}
+                {!isLoading && role === "OWNER" && isPro === true && (
+                  <span className="inline-flex items-center rounded-full px-3 py-0.5 text-xs font-bold uppercase tracking-wider bg-purple-100 text-purple-800">
+                    Pro
+                  </span>
+                )}
+                {!isLoading && role === "OWNER" && !isPro && (
+                  <span className="inline-flex items-center rounded-full px-3 py-0.5 text-xs font-bold uppercase tracking-wider bg-gray-200 text-gray-700">
+                    Free
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-sm text-gray-500">
                 Керування рахунками та оплатами
               </p>
             </div>
 
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:gap-3">
-              {role === "ADMIN" && (
-                <button
-                  onClick={() => router.push("/admin")}
-                  className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-gray-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer border-none outline-none"
-                >
-                  Адмінка
-                </button>
-              )}
               {!isAdminImpersonating && (
                 <>
-                  <button
-                    onClick={() => router.push("/create")}
-                    className="inline-flex items-center justify-center rounded-md bg-zinc-800  px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none cursor-pointer"
-                  >
-                    + Створити
-                  </button>
+                  {role !== "ASSISTANT" && (
+                    <>
+                      <button
+                        onClick={() => setShowAssistantModal(true)}
+                        className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 cursor-pointer"
+                      >
+                        {assistants.length > 0 ? "Асистент" : "+ Асистент"}
+                      </button>
+                      <button
+                        onClick={() => router.push("/create")}
+                        className="inline-flex items-center justify-center rounded-md bg-zinc-800  px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 border-none outline-none cursor-pointer"
+                      >
+                        + Створити
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={() => setShowLogoutConfirm(true)}
                     className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2 border-none outline-none cursor-pointer"
@@ -248,35 +310,35 @@ export default function Home() {
               )}
             </div>
           </div>
-
-          {isLoading ? (
-            <div className="flex h-40 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-sm">
-              <div className="flex flex-col items-center gap-2 text-gray-500">
-                <svg
-                  className="h-6 w-6 animate-spin text-gray-400"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
+          <div className="mb-4 flex justify-end">
+            {(archivedInvoices.length > 0 || showArchived) && (
+              <div className="inline-flex rounded-xl bg-gray-200/80 p-1">
+                <button
+                  onClick={() => setShowArchived(false)}
+                  className={`rounded-lg px-4 py-2 text-sm font-bold transition-all cursor-pointer border-none outline-none ${
+                    !showArchived
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "bg-transparent text-gray-600 hover:text-gray-900"
+                  }`}
                 >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span className="text-sm font-medium">
-                  Завантаження інвойсів...
-                </span>
+                  Активні
+                </button>
+
+                <button
+                  onClick={() => setShowArchived(true)}
+                  className={`rounded-lg px-4 py-2 text-sm font-bold transition-all cursor-pointer border-none outline-none ${
+                    showArchived
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "bg-transparent text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Архів ({archivedInvoices.length})
+                </button>
               </div>
-            </div>
+            )}
+          </div>
+          {isLoading ? (
+            <LoadingSpinner />
           ) : (
             <>
               <div className="hidden w-full overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm sm:block">
@@ -290,23 +352,30 @@ export default function Home() {
                         Сума
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Дата
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                         Статус
                       </th>
                       <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
-                    {invoices.length === 0 ? (
+                    {currentInvoices.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className="px-6 py-12 text-center text-sm text-gray-500"
                         >
-                          У вас ще немає інвойсів. Створіть перший!
+                          {showArchived
+                            ? "У вас ще немає видалених інвойсів.."
+                            : role === "ASSISTANT"
+                              ? "У вас ще немає інвойсів."
+                              : "У вас ще немає інвойсів. Створіть перший!"}
                         </td>
                       </tr>
                     ) : (
-                      invoices.map((inv) => (
+                      currentInvoices.map((inv) => (
                         <tr
                           key={inv.id}
                           className="group transition-colors hover:bg-gray-50"
@@ -317,73 +386,110 @@ export default function Home() {
                           <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                             ${(inv.amount / 100).toFixed(2)}
                           </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                            {new Date(inv.created_at).toLocaleDateString(
+                              "uk-UA",
+                            )}
+                          </td>
                           <td className="whitespace-nowrap px-6 py-4 text-sm">
                             <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${inv.status === "PAID" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}
+                              onClick={() => handleToggleStatus(inv)}
+                              title="Змінити статус"
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusColor(
+                                inv.status,
+                              )} ${!showArchived && "cursor-pointer"}`}
                             >
                               {inv.status}
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
-                            {isAdminImpersonating ? (
+                            {showArchived ? (
                               <span className="text-xs font-semibold text-gray-400">
-                                Тільки перегляд
+                                В архіві
                               </span>
                             ) : (
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  onClick={() => handleDownload(inv.id)}
-                                  disabled={downloadingId === inv.id}
-                                  title="Завантажити PDF"
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 cursor-pointer border-none outline-none"
-                                >
-                                  <Image
-                                    src="/download.png"
-                                    alt="Завантажити"
-                                    width={16}
-                                    height={16}
-                                    className="grayscale transition-all hover:grayscale-0 "
-                                  />
-                                </button>
-                                <button
-                                  onClick={() => router.push("/edit/" + inv.id)}
-                                  title="Редагувати"
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer border-none outline-none"
-                                >
-                                  <svg
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth="2.5"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                  </svg>
-                                </button>
-                                <button
-                                  onClick={() => confirmDelete(inv.id)}
-                                  title="Видалити"
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200 cursor-pointer border-none outline-none"
-                                >
-                                  <svg
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth="2.5"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                    />
-                                  </svg>
-                                </button>
-                              </div>
+                              <>
+                                {isAdminImpersonating && (
+                                  <span className="text-xs font-semibold text-gray-400">
+                                    Тільки перегляд
+                                  </span>
+                                )}
+                                {!isAdminImpersonating && role === "OWNER" && (
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      onClick={() => handleDownload(inv.id)}
+                                      disabled={downloadingId === inv.id}
+                                      title="Завантажити PDF"
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 cursor-pointer border-none outline-none"
+                                    >
+                                      <Image
+                                        src="/download.png"
+                                        alt="Завантажити"
+                                        width={16}
+                                        height={16}
+                                        className="grayscale transition-all hover:grayscale-0"
+                                      />
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        router.push("/edit/" + inv.id)
+                                      }
+                                      title="Редагувати"
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer border-none outline-none"
+                                    >
+                                      <svg
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth="2.5"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                        />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => confirmDelete(inv.id)}
+                                      title="Видалити"
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200 cursor-pointer border-none outline-none"
+                                    >
+                                      <svg
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth="2.5"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                        />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                )}
+                                {!isAdminImpersonating &&
+                                  role === "ASSISTANT" && (
+                                    <button
+                                      onClick={() => handleDownload(inv.id)}
+                                      disabled={downloadingId === inv.id}
+                                      title="Відкрити PDF"
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-all hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-wait disabled:opacity-50 cursor-pointer border-none outline-none"
+                                    >
+                                      <Image
+                                        src="/download.png"
+                                        alt="PDF"
+                                        width={16}
+                                        height={16}
+                                        className="grayscale transition-all hover:grayscale-0"
+                                      />
+                                    </button>
+                                  )}
+                              </>
                             )}
                           </td>
                         </tr>
@@ -393,12 +499,16 @@ export default function Home() {
                 </table>
               </div>
               <div className="flex flex-col gap-4 sm:hidden">
-                {invoices.length === 0 ? (
+                {currentInvoices.length === 0 ? (
                   <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
-                    У вас ще немає інвойсів. Створіть перший!
+                    {showArchived
+                      ? "У вас ще немає видалених інвойсів.."
+                      : role === "ASSISTANT"
+                        ? "У вас ще немає інвойсів."
+                        : "У вас ще немає інвойсів. Створіть перший!"}
                   </div>
                 ) : (
-                  invoices.map((inv) => (
+                  currentInvoices.map((inv) => (
                     <div
                       key={inv.id}
                       className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-all active:scale-[0.98]"
@@ -407,8 +517,15 @@ export default function Home() {
                         <span className="truncate text-lg font-bold text-gray-900">
                           {inv.client_name}
                         </span>
+                        <span className="text-xs font-semibold tracking-wider text-gray-500">
+                          {new Date(inv.created_at).toLocaleDateString("uk-UA")}
+                        </span>
                         <span
-                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${inv.status === "PAID" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}
+                          onClick={() => handleToggleStatus(inv)}
+                          title="Змінити статус"
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${getStatusColor(
+                            inv.status,
+                          )}`}
                         >
                           {inv.status}
                         </span>
@@ -423,31 +540,49 @@ export default function Home() {
                       </div>
 
                       <div className="flex items-center gap-2 border-t border-gray-100 pt-4">
-                        {isAdminImpersonating ? (
+                        {showArchived ? (
                           <div className="w-full rounded-xl bg-gray-50 py-3 text-center text-sm font-bold text-gray-400">
-                            Тільки перегляд
+                            В архіві
                           </div>
                         ) : (
                           <>
-                            <button
-                              onClick={() => handleDownload(inv.id)}
-                              disabled={downloadingId === inv.id}
-                              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-200 border-none outline-none"
-                            >
-                              PDF
-                            </button>
-                            <button
-                              onClick={() => router.push("/edit/" + inv.id)}
-                              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-100 border-none outline-none"
-                            >
-                              Змінити
-                            </button>
-                            <button
-                              onClick={() => confirmDelete(inv.id)}
-                              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-50 py-3 text-sm font-bold text-red-700 transition-colors hover:bg-red-100 border-none outline-none"
-                            >
-                              Видалити
-                            </button>
+                            {isAdminImpersonating && (
+                              <div className="w-full rounded-xl bg-gray-50 py-3 text-center text-sm font-bold text-gray-400">
+                                Тільки перегляд
+                              </div>
+                            )}
+                            {!isAdminImpersonating && role === "OWNER" && (
+                              <>
+                                <button
+                                  onClick={() => handleDownload(inv.id)}
+                                  disabled={downloadingId === inv.id}
+                                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-200 border-none outline-none"
+                                >
+                                  PDF
+                                </button>
+                                <button
+                                  onClick={() => router.push("/edit/" + inv.id)}
+                                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-100 border-none outline-none"
+                                >
+                                  Змінити
+                                </button>
+                                <button
+                                  onClick={() => confirmDelete(inv.id)}
+                                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-50 py-3 text-sm font-bold text-red-700 transition-colors hover:bg-red-100 border-none outline-none"
+                                >
+                                  Видалити
+                                </button>
+                              </>
+                            )}
+                            {!isAdminImpersonating && role === "ASSISTANT" && (
+                              <button
+                                onClick={() => handleDownload(inv.id)}
+                                disabled={downloadingId === inv.id}
+                                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-200 border-none outline-none"
+                              >
+                                PDF
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -459,7 +594,7 @@ export default function Home() {
           )}
           {!isPro && role === "OWNER" && !isAdminImpersonating && (
             <div className="mt-8">
-              {invoices.length >= 3 ? (
+              {totalInvoicesCount >= 3 ? (
                 <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 sm:p-6 shadow-sm">
                   <div className="flex flex-col">
                     <span className="text-lg font-bold text-indigo-900">
@@ -483,7 +618,7 @@ export default function Home() {
                     Використано безкоштовних інвойсів:
                   </span>
                   <span className="w-8 text-right font-bold text-gray-900">
-                    {invoices.length} / 3
+                    {totalInvoicesCount} / 3
                   </span>
                   {role === "OWNER" && (
                     <button
@@ -527,31 +662,17 @@ export default function Home() {
       )}
 
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-gray-900">
-              Вийти з акаунта?
-            </h3>
-            <p className="mt-2 text-sm text-gray-500">
-              Вам доведеться ввести пароль знову для входу.
-            </p>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 border-none outline-none cursor-pointer"
-              >
-                Скасувати
-              </button>
-              <button
-                onClick={handleLogout}
-                className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-800 border-none outline-none cursor-pointer"
-              >
-                Вийти
-              </button>
-            </div>
-          </div>
-        </div>
+        <LogoutModal
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+        />
       )}
+      <AssistantModal
+        isOpen={showAssistantModal}
+        onClose={() => setShowAssistantModal(false)}
+        assistants={assistants}
+        onSuccess={() => window.location.reload()}
+      />
     </div>
   );
 }

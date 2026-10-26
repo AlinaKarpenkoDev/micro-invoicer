@@ -9,6 +9,12 @@ import { map } from 'rxjs/operators';
 import { AuthUserPayload } from '../auth/user.decorator';
 import { Request } from 'express';
 
+interface InvoiceTable {
+  client_name: string;
+  amount: number;
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class ImpersonationInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -18,27 +24,31 @@ export class ImpersonationInterceptor implements NestInterceptor {
     const user = request.user;
 
     return next.handle().pipe(
-      map((response: { data?: any[] } | undefined) => {
-        if (!user?.is_impersonating || !response?.data) {
-          return response;
-        }
+      map(
+        (
+          response:
+            { data?: InvoiceTable[]; archived?: InvoiceTable[] } | undefined,
+        ) => {
+          if (
+            !user?.is_impersonating ||
+            !response?.data ||
+            !response?.archived
+          ) {
+            return response;
+          }
 
-        const maskedData = response.data.map(
-          (inv: {
-            client_name: string;
-            amount: number;
-            [key: string]: unknown;
-          }) => {
-            return {
-              ...inv,
-              client_name: '***',
-              amount: 0,
-            };
-          },
-        );
+          const maskItem = (inv: InvoiceTable): InvoiceTable => ({
+            ...inv,
+            client_name: '***',
+            amount: 0,
+          });
 
-        return { ...response, data: maskedData };
-      }),
+          const maskedData = response.data.map(maskItem);
+          const maskedArchived = response.archived.map(maskItem);
+
+          return { ...response, data: maskedData, archived: maskedArchived };
+        },
+      ),
     );
   }
 }

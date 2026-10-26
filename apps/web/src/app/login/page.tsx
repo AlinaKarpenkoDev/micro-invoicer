@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -23,6 +24,13 @@ export default function LoginPage() {
 
   const router = useRouter();
 
+  useEffect(() => {
+    const getToken = localStorage.getItem("token");
+    if (getToken) {
+      router.replace("/");
+    }
+  }, [router]);
+
   async function onSubmit(data: LoginFormValues) {
     try {
       const response = await fetch(
@@ -39,9 +47,18 @@ export default function LoginPage() {
         return;
       } else {
         const responseData = await response.json();
-        localStorage.setItem("token", responseData.access_token);
-        toast.success("Вхід виконано!");
-        router.push("/");
+        const token = responseData.access_token;
+        localStorage.setItem("token", token);
+
+        const payload = JSON.parse(atob(token.split(".")[1]));
+
+        if (payload.role === "ADMIN") {
+          toast.success("Вітаємо в панелі адміністратора!");
+          router.replace("/admin");
+        } else {
+          toast.success("Вхід виконано!");
+          router.replace("/");
+        }
       }
     } catch {
       toast.error("Помилка з'єднання з сервером");
@@ -62,7 +79,7 @@ export default function LoginPage() {
           <div>
             <input
               {...register("email")}
-              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm box-border"
               placeholder="email@gmail.com"
             />
             {errors.email && (
@@ -75,7 +92,7 @@ export default function LoginPage() {
           <div>
             <input
               {...register("password")}
-              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm box-border"
               placeholder="password"
               type="password"
             />

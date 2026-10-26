@@ -21,23 +21,27 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
     try {
-      const newUser = await this.db
-        .insertInto('users')
-        .values({
-          email: email,
-          password_hash: hashedPassword,
-          role: 'OWNER',
-        })
-        .returning(['id', 'email', 'created_at'])
-        .executeTakeFirstOrThrow();
+      const newUser = await this.db.transaction().execute(async (trx) => {
+        const user = await trx
+          .insertInto('users')
+          .values({
+            email: email,
+            password_hash: hashedPassword,
+            role: 'OWNER',
+          })
+          .returning(['id', 'email', 'created_at'])
+          .executeTakeFirstOrThrow();
 
-      await this.db
-        .insertInto('workspaces')
-        .values({
-          user_id: newUser.id,
-          name: 'Personal Workspace',
-        })
-        .execute();
+        await trx
+          .insertInto('workspaces')
+          .values({
+            user_id: user.id,
+            name: 'Особистий кабінет',
+          })
+          .execute();
+
+        return user;
+      });
 
       return newUser;
     } catch (error: unknown) {
@@ -50,6 +54,7 @@ export class AuthService {
       throw error;
     }
   }
+
   async login(email: string, plainPassword: string) {
     const user = await this.db
       .selectFrom('users')
@@ -100,7 +105,60 @@ export class AuthService {
     };
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: this.jwtService.sign(payload, { expiresIn: '15m' }),
     };
+  }
+
+  async createAssistant(ownerId: string, email: string, plainPassword: string) {
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+    try {
+      const workspaces = await this.db
+        .selectFrom('workspaces')
+        .select(['id'])
+        .where('user_id', '=', ownerId)
+        .executeTakeFirst();
+      if (!workspaces) {
+        throw new NotFoundException('Page not found');
+      }
+      await this.db
+        .insertInto('users')
+        .values({
+          email,
+          password_hash: hashedPassword,
+          role: 'ASSISTANT',
+          workspace_id: workspaces.id,
+        })
+        .execute();
+
+      return { success: true, message: 'Assistant created' };
+    } catch (error: unknown) {
+      const pgError = error as { code?: string };
+      if (pgError.code === '23505') {
+        throw new ConflictException(
+          'A user with this email address already exists!',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async removeAssistant(ownerId: string, assistantId: string) {
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .select(['id'])
+      .where('user_id', '=', ownerId)
+      .executeTakeFirst();
+
+    if (!workspace) throw new NotFoundException('Workspace not found');
+
+    await this.db
+      .deleteFrom('users')
+      .where('id', '=', assistantId)
+      .where('workspace_id', '=', workspace.id)
+      .where('role', '=', 'ASSISTANT')
+      .execute();
+
+    return { success: true, message: 'Assistant removed' };
   }
 }
