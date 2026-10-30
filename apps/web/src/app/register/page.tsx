@@ -1,4 +1,6 @@
 "use client";
+
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -28,6 +30,14 @@ export default function RegisterPage() {
 
   const router = useRouter();
 
+  useEffect(() => {
+    const getToken = localStorage.getItem("token");
+    if (getToken) {
+      router.replace("/");
+      return;
+    }
+  }, [router]);
+
   async function onSubmit(data: RegisterFormValues) {
     try {
       const response = await fetch(
@@ -44,7 +54,7 @@ export default function RegisterPage() {
         return;
       } else {
         toast.success("Реєстрація успішно пройдена, підтвердіть дані!");
-        router.push("/login");
+        router.replace("/login");
       }
     } catch {
       toast.error("Помилка з'єднання з сервером");
@@ -65,7 +75,7 @@ export default function RegisterPage() {
           <div>
             <input
               {...register("email")}
-              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm box-border"
               placeholder="email@gmail.com"
             />
             {errors.email && (
@@ -78,7 +88,7 @@ export default function RegisterPage() {
           <div>
             <input
               {...register("password")}
-              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm box-border"
               placeholder="password"
               type="password"
             />
@@ -92,7 +102,7 @@ export default function RegisterPage() {
           <div>
             <input
               {...register("confirmPassword")}
-              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm"
+              className="block w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 sm:text-sm box-border"
               placeholder="confirm password"
               type="password"
             />

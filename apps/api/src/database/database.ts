@@ -6,6 +6,11 @@ export interface UsersTable {
   password_hash: string;
   role: 'OWNER' | 'ASSISTANT' | 'ADMIN';
   created_at: ColumnType<Date, string | undefined, never>;
+  workspace_id: ColumnType<
+    string | null,
+    string | null | undefined,
+    string | null
+  >;
 }
 
 export interface WorkspacesTable {
@@ -14,6 +19,7 @@ export interface WorkspacesTable {
   name: string;
   is_pro: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, string | undefined, never>;
+  pro_requested: ColumnType<boolean, boolean | undefined, boolean>;
 }
 
 export interface SessionsTable {
@@ -28,9 +34,11 @@ export interface InvoicesTable {
   workspace_id: string;
   client_name: string;
   amount: number;
-  status: 'PENDING' | 'PAID';
+  status: 'PENDING' | 'PAID' | 'DELETED';
   pdf_url: string | null;
   created_at: ColumnType<Date, string | undefined, never>;
+  payment_details: string | null;
+  deleted_at: ColumnType<Date, string | undefined, string | Date> | null;
 }
 
 export interface Database {

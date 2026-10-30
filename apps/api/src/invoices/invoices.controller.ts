@@ -15,7 +15,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { InvoicesService } from './invoices.service';
 import { ImpersonationInterceptor } from './impersonation.interceptor';
-import { CreateInvoiceDto } from './invoices.dto';
+import { CreateInvoiceDto, UpdateStatusDto } from './invoices.dto';
 import { PdfService } from './pdf.service';
 import { AuthUser } from '../auth/user.decorator';
 import type { AuthUserPayload } from '../auth/user.decorator';
@@ -27,7 +27,8 @@ export class InvoicesController {
     private readonly pdfService: PdfService,
   ) {}
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
   @Post()
   async create(
     @AuthUser() user: AuthUserPayload,
@@ -39,6 +40,7 @@ export class InvoicesController {
       userId,
       body.client_name,
       body.amount,
+      body.payment_details,
     );
   }
 
@@ -73,6 +75,7 @@ export class InvoicesController {
       invoice.client_name,
       Number(invoice.amount),
       invoice.is_pro,
+      invoice.payment_details,
     );
 
     await this.invoicesService.savePdfUrl(id, pdfUrl);
@@ -81,11 +84,14 @@ export class InvoicesController {
   }
 
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles('OWNER')
+  @Roles('ADMIN')
   @Post('upgrade')
-  async upgradeToPro(@AuthUser() user: AuthUserPayload) {
-    const userId = user.sub;
-    return this.invoicesService.upgradeWorkspace(userId);
+  async upgradeToPro(
+    @AuthUser() user: AuthUserPayload,
+    @Body() body: { targetUserId: string },
+  ) {
+    const adminId = user.sub;
+    return this.invoicesService.upgradeWorkspace(adminId, body.targetUserId);
   }
 
   @UseGuards(AuthGuard, RolesGuard)
@@ -95,7 +101,8 @@ export class InvoicesController {
     return this.invoicesService.getAllWorkspacesForAdmin();
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
   @Delete(':id')
   async delete(@AuthUser() user: AuthUserPayload, @Param('id') id: string) {
     if (user.is_impersonating) {
@@ -122,7 +129,8 @@ export class InvoicesController {
     return this.invoicesService.getInvoiceById(userId, id);
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN')
   @Patch(':id')
   async update(
     @AuthUser() user: AuthUserPayload,
@@ -142,6 +150,41 @@ export class InvoicesController {
       id,
       body.client_name,
       body.amount,
+      body.payment_details,
     );
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER')
+  @Post('request-upgrade')
+  async upgradeReq(@AuthUser() user: AuthUserPayload) {
+    if (user.is_impersonating) {
+      throw new ForbiddenException(
+        'This action is not permitted in admin mode.',
+      );
+    }
+
+    const userId = user.sub;
+
+    return this.invoicesService.requestUpgrade(userId);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Post('reject-upgrade')
+  async upgradeRej(@Body() body: { targetUserId: string }) {
+    return this.invoicesService.rejectUpgrade(body.targetUserId);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('OWNER', 'ADMIN', 'ASSISTANT')
+  @Patch(':id/status')
+  async updateStatus(
+    @AuthUser() user: AuthUserPayload,
+    @Param('id') id: string,
+    @Body() body: UpdateStatusDto,
+  ) {
+    const userId = user.sub;
+    return this.invoicesService.updateInvoiceStatus(userId, id, body.status);
   }
 }

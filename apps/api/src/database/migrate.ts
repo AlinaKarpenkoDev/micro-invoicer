@@ -1,6 +1,10 @@
 import * as path from 'path';
 import * as initialSchema from './migrations/001_initial_schema';
 import * as addRolesSchema from './migrations/002_add_roles';
+import * as addPaymentSchema from './migrations/003_add_payment_details';
+import * as deletedAtSchema from './migrations/004_add_deleted_at';
+import * as addProRequestedSchema from './migrations/005_add_pro_requested';
+import * as addWorkspaceIdToUsers from './migrations/006_add_workspace_id_to_users';
 
 // nosemgrep
 import { config } from 'dotenv';
@@ -26,6 +30,10 @@ async function runMigrations() {
         return Promise.resolve({
           '001_initial_schema': initialSchema,
           '002_add_roles': addRolesSchema,
+          '003_add_payment_details': addPaymentSchema,
+          '004_add_deleted_at': deletedAtSchema,
+          '005_add_pro_requested': addProRequestedSchema,
+          '006_add_workspace_id_to_users': addWorkspaceIdToUsers,
         });
       },
     },
