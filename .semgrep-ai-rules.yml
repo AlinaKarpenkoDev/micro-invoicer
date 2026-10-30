@@ -391,22 +391,6 @@ rules:
       subcategory: runtime-modernity
       impact: MEDIUM
 
-  - id: ai-anti-pattern-bun-legacy-dotenv
-    message: |
-      AI Anti-pattern (Legacy Hallucinations): Імпорт 'dotenv' у Bun проєкті.
-      Середовище Bun за замовчуванням автоматично читає змінні з '.env'.
-    severity: WARNING
-    languages: [ts, js]
-    pattern-either:
-      - pattern: import 'dotenv'
-      - pattern: import 'dotenv/config'
-      - pattern: import $X from 'dotenv'
-      - pattern: require('dotenv')
-      - pattern: require('dotenv').config(...)
-    metadata:
-      category: ai-antipattern
-      subcategory: runtime-modernity
-      impact: LOW
 
   - id: ai-anti-pattern-version-anachronism-var
     message: |
